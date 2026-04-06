@@ -4,69 +4,57 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    const hfToken = process.env.HF_API_KEY;
-    if (!hfToken) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'API key missing' }) };
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) {
+      return { statusCode: 500, body: JSON.stringify({ error: 'Groq API key missing' }) };
     }
 
     const { messages } = JSON.parse(event.body || '{}');
-    const userText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
-
-    // ✅ الموديل البسيط والمضمون + الرابط الصحيح
-    const MODEL_URL = 'https://api-inference.huggingface.co/models/google/flan-t5-small';
     
-    // برومت مبسط يناسب الموديل الصغير
-    const prompt = `Bug report: ${userText}. Format: Title, Description, Steps, Expected, Actual, Severity.`;
+    // بناء البرومت من المحادثة
+    const systemMsg = messages.find(m => m.role === 'system')?.content || '';
+    const userMsgs = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n');
 
-    const response = await fetch(MODEL_URL, {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${hfToken}`,
-        'Content-Type': 'application/json',
-        'X-Wait-For-Model': 'true'
+        'Authorization': `Bearer ${groqKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_length: 500,
-          temperature: 0.3
-        }
+        model: 'llama3-8b-8192', // موديل سريع ومجاني
+        messages: [
+          { role: 'system', content: systemMsg || 'You are a professional QA expert. Output ONLY valid JSON bug reports.' },
+          { role: 'user', content: userMsgs }
+        ],
+        temperature: 0.3,
+        max_tokens: 1024,
+        response_format: { type: 'json_object' } // يضمن إخراج JSON
       })
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ HF Error:', response.status, errorText);
-      
-      if (response.status === 503) {
-        return { statusCode: 503, body: JSON.stringify({ error: 'Model loading. Retry in 20s.' }) };
-      }
-      if (response.status === 401) {
-        return { statusCode: 401, body: JSON.stringify({ error: 'Invalid API Key' }) };
-      }
-      if (response.status === 404) {
-        return { statusCode: 404, body: JSON.stringify({ error: 'Model not found. Check model name.' }) };
-      }
-      
-      return { statusCode: response.status, body: JSON.stringify({ error: errorText }) };
+      const err = await response.text();
+      console.error('❌ Groq Error:', response.status, err);
+      return { statusCode: response.status, body: JSON.stringify({ error: 'AI service error' }) };
     }
 
     const data = await response.json();
-    const text = data[0]?.generated_text || 'No response';
+    const content = data.choices?.[0]?.message?.content || '';
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        type: 'text',
-        content: text
-      })
-    };
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.Title && parsed.Description) {
+        return { statusCode: 200, body: JSON.stringify({ type: 'json', content: parsed }) };
+      }
+    } catch (e) {
+      // إذا ما كان JSON صالح، نرجعه كنص
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ type: 'text', content }) };
 
   } catch (error) {
     console.error('💥 Crash:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal error', details: error.message })
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Internal error', details: error.message }) };
   }
 };
