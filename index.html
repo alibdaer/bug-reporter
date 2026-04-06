@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bug Reporter AI - Professional QA Reports</title>
+  <title>Bug Reporter AI</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <button id="theme-toggle" class="theme-toggle">
+  <button id="theme-toggle" class="theme-toggle" title="Toggle Theme">
     <span class="icon">🌙</span>
   </button>
 
@@ -20,7 +20,7 @@
           <p class="subtitle">Professional QA Bug Report Generator</p>
         </div>
       </div>
-      <div class="status-badge">● Connected | Ready</div>
+      <!-- تم إزالة شارة الاتصال كما طلبت -->
     </div>
   </header>
 
@@ -32,7 +32,7 @@
           <div class="message-content">
             <p><strong>Welcome! 👋</strong></p>
             <p>I'm your specialized assistant for generating professional Bug Reports.</p>
-            <p>Simply describe the issue you encountered, and I'll convert it into a precise report ready to send to the technical team.</p>
+            <p>Simply describe the issue you encountered, and I'll convert it into a precise report ready for your technical team.</p>
             <div class="quick-tips">💡 Example: "When clicking the registration button, I get a 500 error"</div>
           </div>
         </div>
@@ -60,10 +60,14 @@
         </div>
       </div>
       <div id="report-content" class="report-content">
-        <!-- Report will appear here -->
+        <!-- Report will be injected here -->
       </div>
     </div>
   </main>
+
+  <footer class="site-footer">
+    <p>Developed with ❤️ by <a href="https://www.linkedin.com/in/alibdaer" target="_blank" rel="noopener noreferrer">Ali Bdaer</a></p>
+  </footer>
 
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="loader">
