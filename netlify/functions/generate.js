@@ -1,5 +1,5 @@
 // netlify/functions/generate.js
-// AI Bug Report Generator - Professional QA Expert
+// AI Bug Report Generator - Professional QA Expert (Powered by DeepSeek)
 
 exports.handler = async function(event, context) {
   // السماح فقط بطلبات POST
@@ -12,11 +12,11 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    const groqKey = process.env.GROQ_API_KEY;
+    const apiKey = process.env.DEEPSEEK_API_KEY;
     
     // التحقق من مفتاح الـ API
-    if (!groqKey) {
-      console.error('❌ GROQ_API_KEY is missing in environment variables');
+    if (!apiKey) {
+      console.error('❌ DEEPSEEK_API_KEY is missing in environment variables');
       return { 
         statusCode: 500, 
         headers: { 'Content-Type': 'application/json' },
@@ -31,7 +31,7 @@ exports.handler = async function(event, context) {
     const systemMsg = messages.find(m => m.role === 'system')?.content || '';
     const userMsgs = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n');
 
-    // 🎯 البرومبت الاحترافي القوي (النسخة الكاملة)
+    // 🎯 البرومبت الاحترافي القوي
     const systemPrompt = `أنت خبير QA/QC محترف بخبرة 20+ عاماً في اختبار البرمجيات وكتابة التقارير وفق المعايير العالمية (ISTQB, IEEE 829).
 
 📋 مهمتك الوحيدة: تحويل وصف المستخدم إلى تقرير Bug احترافي، واضح، ومختصر.
@@ -69,16 +69,15 @@ exports.handler = async function(event, context) {
 
 التزم بهذه القواعد حرفياً. لا تحيد عن دورك أبداً. لا تفتح مواضيع جانبية. ركّز فقط على كتابة تقرير Bug احترافي.`;
 
-    // 📡 استدعاء Groq API
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // 📡 استدعاء DeepSeek API
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${groqKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        // ✅ الموديل المدعوم حالياً (سريع ومجاني)
-        model: 'llama-3.1-8b-instant',
+        model: 'deepseek-chat', // الموديل المجاني والقوي
         messages: [
           { role: 'system', content: systemPrompt },
           ...messages.filter(m => m.role !== 'system')
@@ -92,42 +91,25 @@ exports.handler = async function(event, context) {
     // 📥 معالجة الاستجابة
     if (!response.ok) {
       const errText = await response.text();
-      console.error('❌ Groq API Error:', response.status, errText);
+      console.error('❌ DeepSeek API Error:', response.status, errText);
       
-      // أخطاء شائعة
       if (response.status === 401) {
-        return { 
-          statusCode: 401, 
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'Invalid API Key' }) 
-        };
+        return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Invalid API Key' }) };
       }
       if (response.status === 429) {
-        return { 
-          statusCode: 429, 
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment.' }) 
-        };
+        return { statusCode: 429, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment.' }) };
       }
       if (response.status === 500) {
-        return { 
-          statusCode: 500, 
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'Groq service temporarily unavailable' }) 
-        };
+        return { statusCode: 500, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'DeepSeek service temporarily unavailable' }) };
       }
       
-      return { 
-        statusCode: response.status, 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'AI service error: ' + errText }) 
-      };
+      return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'AI service error: ' + errText }) };
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
     
-    console.log('✅ Received response, length:', content.length);
+    console.log('✅ DeepSeek response received, length:', content.length);
 
     // 🔍 استخراج JSON إذا كان محاطاً بـ markdown
     let cleanJSON = content;
@@ -147,11 +129,7 @@ exports.handler = async function(event, context) {
         return { 
           statusCode: 200, 
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            type: 'json', 
-            content: parsed,
-            raw: content // للاحتياط
-          }) 
+          body: JSON.stringify({ type: 'json', content: parsed }) 
         };
       } else {
         console.log('⚠️ JSON missing required fields');
@@ -160,15 +138,11 @@ exports.handler = async function(event, context) {
       console.log('ℹ️ Response not valid JSON, returning as text');
     }
 
-    // 📝 فallback: إرجاع النص كما هو
+    // 📝 Fallback: إرجاع النص كما هو
     return { 
       statusCode: 200, 
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        type: 'text', 
-        content: content,
-        note: 'Response was not valid JSON. Frontend should handle gracefully.'
-      }) 
+      body: JSON.stringify({ type: 'text', content: content }) 
     };
 
   } catch (error) {
@@ -176,10 +150,7 @@ exports.handler = async function(event, context) {
     return { 
       statusCode: 500, 
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        error: 'Internal server error', 
-        details: error.message 
-      }) 
+      body: JSON.stringify({ error: 'Internal server error', details: error.message }) 
     };
   }
 };
