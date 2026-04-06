@@ -16,10 +16,10 @@ exports.handler = async function(event, context) {
     const { messages } = JSON.parse(event.body || '{}');
     const userText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
 
-    // استخدم موديل بسيط وسريع
-    const MODEL = 'https://api-inference.huggingface.co/models/microsoft/Phi-3-mini-4k-instruct';
+    // ✅ الرابط الجديد لـ Hugging Face
+    const MODEL = 'https://router.huggingface.co/models/microsoft/Phi-3-mini-4k-instruct';
     
-    const prompt = `You are a QA expert. Create a professional bug report in JSON format from this description: ${userText}`;
+    const prompt = `You are a QA expert. Create a professional bug report in JSON format from this description: ${userText}. Output ONLY valid JSON with keys: Title, Description, Steps_to_Reproduce, Expected_Result, Actual_Result, Environment, Severity_Priority, Impact, Attachments.`;
 
     console.log('📡 Calling API...');
 
