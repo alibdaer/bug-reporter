@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🐛 Bug Reporter AI | Professional QA Tool</title>
+  <title>Bug Reporter AI</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Theme Toggle Button -->
-  <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme">
+  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()" type="button">
     <span class="icon">🌙</span>
   </button>
-  
+
   <header>
     <div class="container header-content">
       <div class="brand">
@@ -21,7 +20,6 @@
           <p class="subtitle">Professional QA Bug Report Generator</p>
         </div>
       </div>
-      <!-- تم إزالة شارة الاتصال كما طلبت -->
     </div>
   </header>
 
@@ -33,7 +31,7 @@
           <div class="message-content">
             <p><strong>Welcome! 👋</strong></p>
             <p>I'm your specialized assistant for generating professional Bug Reports.</p>
-            <p>Simply describe the issue you encountered, and I'll convert it into a precise report ready for your technical team.</p>
+            <p>Simply describe the issue you encountered.</p>
             <div class="quick-tips">💡 Example: "When clicking the registration button, I get a 500 error"</div>
           </div>
         </div>
@@ -41,8 +39,8 @@
 
       <div class="input-wrapper">
         <div class="input-group">
-          <textarea id="user-input" placeholder="Describe the issue here..." rows="1"></textarea>
-          <button id="send-btn" class="send-btn" disabled>➤</button>
+          <textarea id="user-input" placeholder="Describe the issue here..." rows="1" oninput="checkInput()"></textarea>
+          <button id="send-btn" class="send-btn" onclick="sendMessage()" disabled>➤</button>
         </div>
         <div class="input-meta">
           <span>Press Enter to send • Shift+Enter for new line</span>
@@ -55,25 +53,23 @@
       <div class="panel-header">
         <h2>📋 Generated Report</h2>
         <div class="panel-actions">
-          <button id="copy-btn" class="action-btn">📋 Copy</button>
-          <button id="download-btn" class="action-btn">⬇ Download TXT</button>
-          <button id="new-report-btn" class="action-btn secondary">✨ New Report</button>
+          <button id="copy-btn" class="action-btn" onclick="copyReport()">📋 Copy</button>
+          <button id="download-btn" class="action-btn" onclick="downloadReport()">⬇ Download</button>
+          <button id="new-report-btn" class="action-btn secondary" onclick="newReport()">✨ New Report</button>
         </div>
       </div>
-      <div id="report-content" class="report-content">
-        <!-- Report will be injected here -->
-      </div>
+      <div id="report-content" class="report-content"></div>
     </div>
   </main>
 
   <footer class="site-footer">
-    <p>Developed with ❤️ by <a href="https://www.linkedin.com/in/alibdaer" target="_blank" rel="noopener noreferrer">Ali Bdaer</a></p>
+    <p>Developed with ❤️ by <a href="https://www.linkedin.com/in/alibdaer" target="_blank" rel="noopener">Ali Bdaer</a></p>
   </footer>
 
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="loader">
       <div class="loader-ring"></div>
-      <div id="loading-text">Crafting professional report...</div>
+      <div id="loading-text">Crafting report...</div>
     </div>
   </div>
 
