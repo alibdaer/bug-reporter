@@ -8,62 +8,91 @@ exports.handler = async function(event, context) {
     const hfToken = process.env.HF_API_KEY;
 
     if (!hfToken) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'HF API key not configured' }) };
+      console.error('❌ HF_API_KEY is missing');
+      return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
     }
 
-    // بناء البرومت من المحادثة
+    // تجهيز البرومت من المحادثة
     const systemMsg = messages.find(m => m.role === 'system')?.content || '';
     const userMsgs = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n');
-    const prompt = `${systemMsg}\n\n${userMsgs}`.trim();
+    const prompt = `You are a professional QA expert. Format the following bug description into a professional JSON bug report.
+    
+User description:
+${userMsgs}
 
-    const hfRes = await fetch(
-      'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${hfToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          inputs: prompt,
-          parameters: {
-            max_new_tokens: 1024,
-            temperature: 0.3,
-            return_full_text: false,
-            stop: ["</s>"]
-          }
-        })
-      }
-    );
+Output ONLY valid JSON with these keys: Title, Description, Steps_to_Reproduce (array), Expected_Result, Actual_Result, Environment, Severity_Priority, Impact, Attachments.`;
+
+    console.log('📡 Calling Hugging Face API...');
+
+    // استخدام موديل مستقر وسريع
+    const MODEL_URL = 'https://api-inference.huggingface.co/models/google/gemma-2b-it';
+
+    const hfRes = await fetch(MODEL_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${hfToken}`,
+        'Content-Type': 'application/json',
+        'X-Wait-For-Model': 'true' // ينتظر لو الموديل بيدخل وضع السكون
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 1500,
+          temperature: 0.1, // منخفض عشان نلتزم بـ JSON
+          return_full_text: false,
+          stop: ["</s>", "<end_of_turn>"]
+        }
+      })
+    });
+
+    const responseText = await hfRes.text(); // نقرأ النص أولاً عشان نشوف الخطأ لو صار
 
     if (!hfRes.ok) {
-      const err = await hfRes.text();
-      console.error('HF Error:', hfRes.status, err);
-      // إذا الموديل لسه بيحمل، انتظر شوي
-      if (hfRes.status === 503) {
-        return { statusCode: 503, body: JSON.stringify({ error: 'Model loading, please retry in 20s' }) };
+      console.error('❌ HF API Error:', hfRes.status, responseText);
+      
+      // معالجة الأخطاء الشائعة
+      if (hfRes.status === 410) {
+        return { statusCode: 500, body: JSON.stringify({ error: 'Model deprecated. Please update code.' }) };
       }
-      return { statusCode: hfRes.status, body: JSON.stringify({ error: 'AI service error' }) };
+      if (hfRes.status === 503) {
+        return { statusCode: 503, body: JSON.stringify({ error: 'Model is loading. Please retry in 20 seconds.' }) };
+      }
+      if (hfRes.status === 401) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Invalid API Key' }) };
+      }
+      
+      return { statusCode: hfRes.status, body: JSON.stringify({ error: 'AI service error: ' + responseText }) };
     }
 
-    const hfData = await hfRes.json();
-    let raw = hfData[0]?.generated_text || '';
+    let hfData;
+    try {
+      hfData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse HF response:', responseText);
+      return { statusCode: 500, body: JSON.stringify({ error: 'Invalid response from AI' }) };
+    }
 
-    // استخراج JSON إذا وجد
+    let raw = hfData[0]?.generated_text || '';
+    console.log('✅ Received response from AI');
+
+    // استخراج JSON إذا كان محاطاً بـ markdown
     const jsonMatch = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
     const cleanJSON = jsonMatch ? jsonMatch[1] : raw;
 
     try {
       const parsed = JSON.parse(cleanJSON);
       if (parsed.Title && parsed.Description) {
+        console.log('📦 Valid JSON report generated');
         return { statusCode: 200, body: JSON.stringify({ type: 'json', content: parsed }) };
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log('ℹ️ Response not valid JSON, returning as text');
+    }
 
     return { statusCode: 200, body: JSON.stringify({ type: 'text', content: raw }) };
 
   } catch (error) {
-    console.error('Handler Error:', error);
+    console.error('💥 Handler crashed:', error.message, error.stack);
     return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) };
   }
 };
