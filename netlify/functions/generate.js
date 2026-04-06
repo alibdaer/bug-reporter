@@ -22,13 +22,14 @@ exports.handler = async function(event, context) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192', // موديل سريع ومجاني
+        // ✅ الموديل الجديد المدعوم
+        model: 'llama-3.1-8b-instant', 
         messages: [
-          { role: 'system', content: systemMsg || 'You are a professional QA expert. Output ONLY valid JSON bug reports.' },
+          { role: 'system', content: systemMsg || 'You are a professional QA expert. Output ONLY valid JSON bug reports with keys: Title, Description, Steps_to_Reproduce, Expected_Result, Actual_Result, Environment, Severity_Priority, Impact, Attachments.' },
           { role: 'user', content: userMsgs }
         ],
         temperature: 0.3,
-        max_tokens: 1024,
+        max_tokens: 1500,
         response_format: { type: 'json_object' } // يضمن إخراج JSON
       })
     });
@@ -36,7 +37,7 @@ exports.handler = async function(event, context) {
     if (!response.ok) {
       const err = await response.text();
       console.error('❌ Groq Error:', response.status, err);
-      return { statusCode: response.status, body: JSON.stringify({ error: 'AI service error' }) };
+      return { statusCode: response.status, body: JSON.stringify({ error: 'AI service error: ' + err }) };
     }
 
     const data = await response.json();
@@ -48,7 +49,7 @@ exports.handler = async function(event, context) {
         return { statusCode: 200, body: JSON.stringify({ type: 'json', content: parsed }) };
       }
     } catch (e) {
-      // إذا ما كان JSON صالح، نرجعه كنص
+      console.log('ℹ️ Response not valid JSON');
     }
 
     return { statusCode: 200, body: JSON.stringify({ type: 'text', content }) };
