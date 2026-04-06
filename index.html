@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐛 Bug Reporter AI | Professional QA Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Arabic:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <button id="theme-toggle" class="theme-toggle" aria-label="تبديل الوضع">
+        <span class="icon">🌙</span>
+    </button>
+
+    <!-- Header -->
+    <header>
+        <div class="container header-content">
+            <div class="brand">
+                <div class="logo-ring">🐛</div>
+                <div>
+                    <h1>Bug Reporter <span class="accent">AI</span></h1>
+                    <p class="subtitle">نظام ذكي لصياغة تقارير الأعطال وفق المعايير العالمية</p>
+                </div>
+            </div>
+            <div class="status-badge">🟢 متصل | جاهز للعمل</div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Chat Interface -->
+        <section class="workspace">
+            <div id="chat-container" class="chat-container">
+                <div class="message bot-message">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <p><strong>مرحباً بك 👋</strong></p>
+                        <p>أنا مساعدك المتخصص في صياغة تقارير الـ <span class="highlight">Bug Reports</span> الاحترافية. فقط اشرح لي العطل الذي واجهته (عربي/إنجليزي/عامي)، وسأقوم بتحويله فوراً إلى تقرير دقيق وجاهز للإرسال للفريق التقني.</p>
+                        <div class="quick-tips">
+                            <span>💡 مثال: "لما بضغط على زر التسجيل بيطلع لي خطا 500"</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-wrapper">
+                <div class="attachment-preview" id="attachment-preview"></div>
+                <div class="input-group">
+                    <button id="attach-btn" class="icon-btn" title="إرفاق ملف">📎</button>
+                    <input type="file" id="file-input" hidden accept="image/*,.pdf,.txt,.log,.json" multiple>
+                    <textarea id="user-input" rows="1" placeholder="اشرح المشكلة هنا..." maxlength="2000"></textarea>
+                    <button id="send-btn" class="send-btn" disabled>➤</button>
+                </div>
+                <div class="input-meta">
+                    <span id="char-count">0/2000</span>
+                    <span class="hint">اضغط Enter للإرسال • Shift+Enter لسطر جديد</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Generated Report Panel -->
+        <section id="report-panel" class="report-panel hidden">
+            <div class="panel-header">
+                <h2>📋 التقرير المُولّد</h2>
+                <div class="panel-actions">
+                    <button id="copy-btn" class="action-btn">📋 نسخ</button>
+                    <button id="download-btn" class="action-btn">💾 تحميل TXT</button>
+                    <button id="new-report-btn" class="action-btn secondary">🔄 تقرير جديد</button>
+                </div>
+            </div>
+            <div id="report-content" class="report-content"></div>
+        </section>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loader">
+            <div class="loader-ring"></div>
+            <div class="loader-ring loader-ring--delay"></div>
+            <p id="loading-text">جاري التحليل والتهيئة...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
