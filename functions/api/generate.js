@@ -1,10 +1,6 @@
-// functions/api/generate.js
-// Cloudflare Pages Function - Smart JSON Extraction & Professional QA
-
 export async function onRequest(context) {
   const { request, env } = context;
 
-  // 1. التحقق من نوع الطلب
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -12,9 +8,8 @@ export async function onRequest(context) {
     });
   }
 
-  // 2. التحقق من المفاتيح
   if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) {
-    return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+    return new Response(JSON.stringify({ error: 'Server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -23,7 +18,6 @@ export async function onRequest(context) {
   try {
     const { messages } = await request.json();
     
-    // 3. البرومبت الخاص بك (مدمج تماماً كما طلبت)
     const systemPrompt = `Professional QA Bug Reporting Prompt
 
 You are a Senior Quality Assurance (QA/QC) Engineer with over 15 years
@@ -143,7 +137,6 @@ Scope Restriction (Strict)
         only
 `;
 
-    // 4. استدعاء API
     const aiUrl = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`;
     
     const aiResponse = await fetch(aiUrl, {
@@ -158,14 +151,12 @@ Scope Restriction (Strict)
           ...messages.filter(m => m.role !== 'system')
         ],
         max_tokens: 2048,
-        temperature: 0.2 
+        temperature: 0.1
       })
     });
 
     if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error('❌ AI API Error:', aiResponse.status, errText);
-      return new Response(JSON.stringify({ error: 'AI service unavailable' }), {
+      return new Response(JSON.stringify({ error: 'AI error' }), {
         status: aiResponse.status,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -174,53 +165,71 @@ Scope Restriction (Strict)
     const aiData = await aiResponse.json();
     const rawContent = aiData.result?.response || '';
 
-    // 5. 🧠 الخوارزمية الذكية لاستخراج JSON (هنا الحل!)
+    // Try to extract JSON first
     let cleanJSON = rawContent;
-    
-    // محاولة 1: البحث داخل Markdown
     const jsonMatch = rawContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
     if (jsonMatch) {
       cleanJSON = jsonMatch[1];
     } else {
-      // محاولة 2: البحث عن أول { وآخر } (أقوى طريقة)
-      const firstBracket = rawContent.indexOf('{');
-      const lastBracket = rawContent.lastIndexOf('}');
-      
-      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-        cleanJSON = rawContent.substring(firstBracket, lastBracket + 1);
-        console.log('✅ JSON extracted using index logic');
+      // Extract between first { and last }
+      const first = rawContent.indexOf('{');
+      const last = rawContent.lastIndexOf('}');
+      if (first !== -1 && last !== -1) {
+        cleanJSON = rawContent.substring(first, last + 1);
       }
     }
 
-    // 6. التحقق والتحليل
     try {
       const parsed = JSON.parse(cleanJSON);
-      
-      // التحقق من وجود الحقول الأساسية
       if (parsed.Title && parsed.Description) {
         return new Response(JSON.stringify({ type: 'json', content: parsed }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
-      } else {
-        console.warn('⚠️ JSON parsed but missing required fields');
       }
     } catch (e) {
-      console.error('❌ JSON Parse Failed:', e.message);
-      console.log('Raw content causing error:', rawContent);
+      console.error('JSON parse failed:', e);
     }
 
-    // 7. إذا فشل كل شيء، نعيد النص كما هو (بدون رسالة خطأ خادعة)
-    return new Response(JSON.stringify({ type: 'text', content: rawContent }), {
+    // Fallback: Convert markdown text to JSON structure
+    const report = {
+      Title: extractField(rawContent, 'Title') || 'Bug Report',
+      Description: extractField(rawContent, 'Description') || rawContent.substring(0, 200),
+      Steps_to_Reproduce: extractSteps(rawContent),
+      Expected_Result: extractField(rawContent, 'Expected Result') || extractField(rawContent, 'Expected_Result') || 'Not specified',
+      Actual_Result: extractField(rawContent, 'Actual Result') || extractField(rawContent, 'Actual_Result') || 'Not specified',
+      Environment: extractField(rawContent, 'Environment') || 'Not specified',
+      Severity_Priority: extractField(rawContent, 'Severity') || extractField(rawContent, 'Severity / Priority') || 'Medium',
+      Impact: extractField(rawContent, 'Impact') || 'Not specified',
+      Attachments: extractField(rawContent, 'Attachments') || 'None'
+    };
+
+    return new Response(JSON.stringify({ type: 'json', content: report }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('💥 Function crashed:', error.message);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
   }
+}
+
+// Helper functions to extract fields from markdown text
+function extractField(text, fieldName) {
+  const regex = new RegExp(`\\*\\*${fieldName}:\\*\\*\\s*([^*]+?)(?=\\*\\*|$)`, 'i');
+  const match = text.match(regex);
+  return match ? match[1].trim() : null;
+}
+
+function extractSteps(text) {
+  const stepsRegex = /\\*\\*Steps to Reproduce:\\*\\*\\s*([\s\S]*?)(?=\\*\\*|$)/i;
+  const match = text.match(stepsRegex);
+  if (!match) return ['Not specified'];
+  
+  const stepsText = match[1];
+  const steps = stepsText.split(/\d+\./).filter(s => s.trim().length > 0);
+  return steps.length > 0 ? steps.map(s => s.trim()) : ['Not specified'];
 }
