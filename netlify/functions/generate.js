@@ -1,14 +1,10 @@
 exports.handler = async function(event, context) {
-  console.log('🟢 Function started');
-  
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
   try {
     const hfToken = process.env.HF_API_KEY;
-    console.log('🔑 API Key exists:', !!hfToken);
-
     if (!hfToken) {
       return { statusCode: 500, body: JSON.stringify({ error: 'API key missing' }) };
     }
@@ -16,48 +12,46 @@ exports.handler = async function(event, context) {
     const { messages } = JSON.parse(event.body || '{}');
     const userText = messages.filter(m => m.role === 'user').map(m => m.content).join(' ');
 
-    // ✅ الرابط الجديد لـ Hugging Face
-    const MODEL = 'https://router.huggingface.co/models/microsoft/Phi-3-mini-4k-instruct';
+    // ✅ الموديل البسيط والمضمون + الرابط الصحيح
+    const MODEL_URL = 'https://api-inference.huggingface.co/models/google/flan-t5-small';
     
-    const prompt = `You are a QA expert. Create a professional bug report in JSON format from this description: ${userText}. Output ONLY valid JSON with keys: Title, Description, Steps_to_Reproduce, Expected_Result, Actual_Result, Environment, Severity_Priority, Impact, Attachments.`;
+    // برومت مبسط يناسب الموديل الصغير
+    const prompt = `Bug report: ${userText}. Format: Title, Description, Steps, Expected, Actual, Severity.`;
 
-    console.log('📡 Calling API...');
-
-    const response = await fetch(MODEL, {
+    const response = await fetch(MODEL_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${hfToken}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Wait-For-Model': 'true'
       },
       body: JSON.stringify({
         inputs: prompt,
         parameters: {
-          max_new_tokens: 1000,
-          temperature: 0.3,
-          return_full_text: false
+          max_length: 500,
+          temperature: 0.3
         }
       })
     });
 
-    console.log('📥 Response status:', response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ API Error:', response.status, errorText);
+      console.error('❌ HF Error:', response.status, errorText);
       
       if (response.status === 503) {
-        return { statusCode: 503, body: JSON.stringify({ error: 'Model loading. Wait 30s and retry.' }) };
+        return { statusCode: 503, body: JSON.stringify({ error: 'Model loading. Retry in 20s.' }) };
       }
       if (response.status === 401) {
         return { statusCode: 401, body: JSON.stringify({ error: 'Invalid API Key' }) };
+      }
+      if (response.status === 404) {
+        return { statusCode: 404, body: JSON.stringify({ error: 'Model not found. Check model name.' }) };
       }
       
       return { statusCode: response.status, body: JSON.stringify({ error: errorText }) };
     }
 
     const data = await response.json();
-    console.log('✅ Success:', data);
-
     const text = data[0]?.generated_text || 'No response';
 
     return {
@@ -72,10 +66,7 @@ exports.handler = async function(event, context) {
     console.error('💥 Crash:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        error: 'Internal error',
-        details: error.message
-      })
+      body: JSON.stringify({ error: 'Internal error', details: error.message })
     };
   }
 };
