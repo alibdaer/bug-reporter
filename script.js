@@ -1,4 +1,4 @@
-// script.js - Professional Bug Reporter AI (Final English Version)
+// script.js - Professional Bug Reporter AI (Final Stable Version)
 
 const state = {
   conversation: [],
@@ -8,7 +8,6 @@ const state = {
 
 let els = {};
 
-// Initialize DOM Elements
 function initElements() {
   els = {
     chat: document.getElementById('chat-container'),
@@ -23,7 +22,7 @@ function initElements() {
   };
 }
 
-// ===== Theme Management =====
+// ===== Theme Management (Fixed & Robust) =====
 function initTheme() {
   const saved = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', saved);
@@ -31,9 +30,10 @@ function initTheme() {
 }
 
 function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme');
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
   const next = current === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
+  html.setAttribute('data-theme', next);
   localStorage.setItem('theme', next);
   updateThemeIcon(next);
 }
@@ -41,9 +41,7 @@ function toggleTheme() {
 function updateThemeIcon(theme) {
   if (els.themeToggle) {
     const icon = els.themeToggle.querySelector('.icon');
-    if (icon) {
-      icon.textContent = theme === 'dark' ? '☀️' : '🌙';
-    }
+    if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
   }
 }
 
@@ -52,9 +50,7 @@ function setupInputHandlers() {
   if (!els.input || !els.sendBtn) return;
 
   els.input.addEventListener('input', () => {
-    if (els.charCount) {
-      els.charCount.textContent = `${els.input.value.length}/2000`;
-    }
+    if (els.charCount) els.charCount.textContent = `${els.input.value.length}/2000`;
     els.sendBtn.disabled = els.input.value.trim().length === 0;
     autoResize(els.input);
   });
@@ -78,7 +74,6 @@ function autoResize(el) {
 // ===== Chat UI =====
 function addMessage(html, isUser = false) {
   if (!els.chat) return;
-  
   const msg = document.createElement('div');
   msg.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
   msg.innerHTML = `
@@ -107,13 +102,11 @@ async function sendMessage() {
   els.input.value = '';
   if (els.charCount) els.charCount.textContent = '0/2000';
   els.sendBtn.disabled = true;
-  
   state.isProcessing = true;
   showLoading('🛠️ Crafting professional report...');
 
   try {
     const res = await callAI(text);
-    
     if (res.status === 'clarify') {
       addMessage(res.message);
       state.conversation.push({ role: 'user', content: text }, { role: 'assistant', content: res.message });
@@ -135,92 +128,58 @@ async function sendMessage() {
 }
 
 async function callAI(userText) {
-  const payload = { 
-    messages: [
-      ...state.conversation,
-      { role: 'user', content: userText }
-    ]
-  };
-
+  const payload = { messages: [...state.conversation, { role: 'user', content: userText }] };
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-
-  if (data.type === 'json') return { status: 'report',  data.content };
-  return { status: 'clarify', message: data.content };
+  return data.type === 'json' ? { status: 'report',  data.content } : { status: 'clarify', message: data.content };
 }
 
-// ===== Professional Report Renderer =====
+// ===== Report Renderer =====
 function renderReport(r) {
   if (!els.reportContent || !els.reportPanel) return;
-
   const sevColor = r.Severity_Priority?.toLowerCase().includes('high') || r.Severity_Priority?.toLowerCase().includes('critical') ? 'var(--accent)' : 'var(--text-secondary)';
 
   els.reportContent.innerHTML = `
     <div class="report-section">
       <h3 class="section-title">Title</h3>
-      <div class="section-content" style="font-weight: 700; font-size: 1.15rem;">
-        ${r.Title || 'Not specified'}
-      </div>
+      <div class="section-content" style="font-weight: 700; font-size: 1.15rem;">${r.Title || 'Not specified'}</div>
     </div>
-
     <div class="report-section">
       <h3 class="section-title">Description</h3>
-      <div class="section-content">
-        ${r.Description || 'Not specified'}
-      </div>
+      <div class="section-content">${r.Description || 'Not specified'}</div>
     </div>
-
     <div class="report-section">
       <h3 class="section-title">Steps to Reproduce</h3>
       <div class="section-content">
-        <ol class="steps-list">
-          ${(r.Steps_to_Reproduce || ['Not specified']).map(step => `<li>${step}</li>`).join('')}
-        </ol>
+        <ol class="steps-list">${(r.Steps_to_Reproduce || ['Not specified']).map(s => `<li>${s}</li>`).join('')}</ol>
       </div>
     </div>
-
     <div class="report-section">
       <h3 class="section-title">Expected Result</h3>
-      <div class="section-content">
-        ${r.Expected_Result || 'Not specified'}
-      </div>
+      <div class="section-content">${r.Expected_Result || 'Not specified'}</div>
     </div>
-
     <div class="report-section">
       <h3 class="section-title">Actual Result</h3>
-      <div class="section-content">
-        ${r.Actual_Result || 'Not specified'}
-      </div>
+      <div class="section-content">${r.Actual_Result || 'Not specified'}</div>
     </div>
-
     <div class="report-section">
       <h3 class="section-title">Severity/Priority</h3>
-      <div class="section-content" style="color: ${sevColor}; font-weight: 600;">
-        ${r.Severity_Priority || 'Medium'}
-      </div>
+      <div class="section-content" style="color: ${sevColor}; font-weight: 600;">${r.Severity_Priority || 'Medium'}</div>
     </div>
-
     <div class="report-section">
       <h3 class="section-title">Impact</h3>
-      <div class="section-content">
-        ${r.Impact || 'Not specified'}
-      </div>
+      <div class="section-content">${r.Impact || 'Not specified'}</div>
     </div>
-
     <div class="report-section">
       <h3 class="section-title">Environment</h3>
-      <div class="section-content">
-        ${r.Environment || 'Not specified'}
-      </div>
+      <div class="section-content">${r.Environment || 'Not specified'}</div>
     </div>
   `;
-
   els.reportPanel.classList.remove('hidden');
   els.reportPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -229,31 +188,17 @@ function renderReport(r) {
 function formatReport() {
   const r = state.report;
   if (!r) return '';
-  
   return `BUG REPORT
 ========================================
-
 Title: ${r.Title || 'Not specified'}
-
-Description:
-${r.Description || 'Not specified'}
-
+Description: ${r.Description || 'Not specified'}
 Steps to Reproduce:
 ${Array.isArray(r.Steps_to_Reproduce) ? r.Steps_to_Reproduce.map((s, i) => `${i+1}. ${s}`).join('\n') : r.Steps_to_Reproduce}
-
-Expected Result:
-${r.Expected_Result || 'Not specified'}
-
-Actual Result:
-${r.Actual_Result || 'Not specified'}
-
+Expected Result: ${r.Expected_Result || 'Not specified'}
+Actual Result: ${r.Actual_Result || 'Not specified'}
 Severity/Priority: ${r.Severity_Priority || 'Medium'}
-
-Impact:
-${r.Impact || 'Not specified'}
-
-Environment:
-${r.Environment || 'Not specified'}
+Impact: ${r.Impact || 'Not specified'}
+Environment: ${r.Environment || 'Not specified'}
 ========================================`;
 }
 
@@ -262,48 +207,31 @@ function setupActionButtons() {
   const downloadBtn = document.getElementById('download-btn');
   const newReportBtn = document.getElementById('new-report-btn');
 
-  if (copyBtn) {
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(formatReport()).then(() => {
-        const originalText = copyBtn.textContent;
-        copyBtn.textContent = '✅ Copied!';
-        setTimeout(() => copyBtn.textContent = originalText, 2000);
-      });
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(formatReport()).then(() => {
+      copyBtn.textContent = '✅ Copied!';
+      setTimeout(() => copyBtn.textContent = '📋 Copy', 2000);
     });
-  }
+  });
 
-  if (downloadBtn) {
-    downloadBtn.addEventListener('click', () => {
-      const blob = new Blob([formatReport()], { type: 'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `BugReport-${Date.now()}.txt`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
-  }
+  if (downloadBtn) downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([formatReport()], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `BugReport-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
 
-  if (newReportBtn) {
-    newReportBtn.addEventListener('click', () => {
-      state.conversation = [];
-      state.report = null;
-      
-      if (els.chat) {
-        els.chat.innerHTML = `
-          <div class="message bot-message">
-            <div class="message-avatar">🤖</div>
-            <div class="message-content">
-              <p><strong>Welcome back! 👋</strong></p>
-              <p>Ready to convert your next description into an accurate report.</p>
-            </div>
-          </div>
-        `;
-      }
-      
-      if (els.reportPanel) els.reportPanel.classList.add('hidden');
-      if (els.input) els.input.focus();
-    });
-  }
+  if (newReportBtn) newReportBtn.addEventListener('click', () => {
+    state.conversation = [];
+    state.report = null;
+    if (els.chat) {
+      els.chat.innerHTML = `<div class="message bot-message"><div class="message-avatar">🤖</div><div class="message-content"><p><strong>Welcome back! 👋</strong></p><p>Ready for the next description.</p></div></div>`;
+    }
+    if (els.reportPanel) els.reportPanel.classList.add('hidden');
+    if (els.input) els.input.focus();
+  });
 }
 
 // ===== Initialize =====
@@ -312,8 +240,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupInputHandlers();
   setupActionButtons();
-  
-  if (els.themeToggle) {
-    els.themeToggle.addEventListener('click', toggleTheme);
-  }
+  if (els.themeToggle) els.themeToggle.addEventListener('click', toggleTheme);
 });
