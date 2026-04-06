@@ -55,7 +55,7 @@ body {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 9999;
+  z-index: 10000 !important; /* أعلى قيمة ممكنة */
   background: var(--bg-secondary);
   border: 2px solid var(--border);
   width: 48px;
@@ -67,8 +67,19 @@ body {
   place-items: center;
   box-shadow: var(--shadow-md);
   transition: var(--transition);
+  pointer-events: auto !important; /* ضروري جداً */
+  -webkit-tap-highlight-color: transparent;
 }
-.theme-toggle:hover { transform: scale(1.1); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow); }
+
+.theme-toggle:hover {
+  transform: scale(1.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
 
 /* Header */
 header {
