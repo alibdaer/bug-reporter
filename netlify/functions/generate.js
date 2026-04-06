@@ -25,7 +25,7 @@ Output ONLY valid JSON with these keys: Title, Description, Steps_to_Reproduce (
     console.log('📡 Calling Hugging Face API...');
 
     // استخدام موديل مستقر وسريع
-    const MODEL_URL = 'https://api-inference.huggingface.co/models/google/gemma-2b-it';
+    const MODEL_URL = 'https://api-inference.huggingface.co/models/microsoft/Phi-3-mini-4k-instruct';
 
     const hfRes = await fetch(MODEL_URL, {
       method: 'POST',
