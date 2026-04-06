@@ -1,6 +1,5 @@
 /* ===== CSS Variables ===== */
 :root {
-  /* Light Mode (Default) */
   --bg-primary: #f5f7fa;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f8f9fc;
@@ -44,8 +43,8 @@
 }
 
 html { 
-  scroll-behavior: smooth; 
-  direction: rtl;
+  scroll-behavior: smooth;
+  direction: ltr;
 }
 
 body {
@@ -313,7 +312,7 @@ textarea::placeholder {
   color: var(--text-muted);
 }
 
-/* ===== Report Panel (Professional Format) ===== */
+/* ===== Report Panel ===== */
 .report-panel {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -372,6 +371,8 @@ textarea::placeholder {
   line-height: 1.8;
   color: var(--text-primary);
   background: var(--bg-secondary);
+  direction: ltr;
+  text-align: left;
 }
 
 /* Professional Report Sections */
