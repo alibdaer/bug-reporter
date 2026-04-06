@@ -135,7 +135,22 @@ Scope Restriction (Strict)
     -   Politely refuse
     -   Clearly state that your role is limited to writing bug reports
         only
-`;
+
+
+IMPORTANT: You MUST output ONLY valid JSON in this exact format:
+{
+  "Title": "string",
+  "Description": "string",
+  "Steps_to_Reproduce": ["step 1", "step 2"],
+  "Expected_Result": "string",
+  "Actual_Result": "string",
+  "Environment": "string",
+  "Severity_Priority": "High/Medium/Low",
+  "Impact": "string",
+  "Attachments": "string"
+}
+
+DO NOT output any text before or after the JSON. DO NOT use markdown formatting.`;
 
     const aiUrl = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`;
     
