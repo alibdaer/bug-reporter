@@ -246,9 +246,21 @@ function setupActionButtons() {
 
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM Loaded');
   initElements();
   initTheme();
   setupInputHandlers();
   setupActionButtons();
-  if (els.themeToggle) els.themeToggle.addEventListener('click', toggleTheme);
+  
+  // Direct event listener with console log
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) {
+    console.log('Theme button found');
+    themeBtn.addEventListener('click', (e) => {
+      console.log('Theme button clicked!', e);
+      toggleTheme();
+    });
+  } else {
+    console.error('Theme button NOT found!');
+  }
 });
