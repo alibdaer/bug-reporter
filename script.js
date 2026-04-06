@@ -1,4 +1,4 @@
-// script.js - Professional Bug Reporter AI (Final Clean Version)
+// script.js - Professional Bug Reporter AI (Final English Version)
 
 const state = {
   conversation: [],
@@ -23,7 +23,7 @@ function initElements() {
   };
 }
 
-// ===== Theme Management (Fixed) =====
+// ===== Theme Management =====
 function initTheme() {
   const saved = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', saved);
@@ -67,8 +67,6 @@ function setupInputHandlers() {
   });
 
   els.sendBtn.addEventListener('click', sendMessage);
-  
-  // Initial state
   els.sendBtn.disabled = true;
 }
 
@@ -111,7 +109,7 @@ async function sendMessage() {
   els.sendBtn.disabled = true;
   
   state.isProcessing = true;
-  showLoading('🛠️ جاري صياغة التقرير الاحترافي...');
+  showLoading('🛠️ Crafting professional report...');
 
   try {
     const res = await callAI(text);
@@ -121,13 +119,13 @@ async function sendMessage() {
       state.conversation.push({ role: 'user', content: text }, { role: 'assistant', content: res.message });
     } else if (res.status === 'report') {
       state.report = res.data;
-      addMessage('✅ <strong>تم إنشاء التقرير بنجاح!</strong>');
+      addMessage('✅ <strong>Report generated successfully!</strong>');
       renderReport(res.data);
-      state.conversation.push({ role: 'user', content: text }, { role: 'assistant', content: 'تم إنشاء التقرير.' });
+      state.conversation.push({ role: 'user', content: text }, { role: 'assistant', content: 'Report created.' });
     }
   } catch (err) {
     console.error(err);
-    addMessage('⚠️ حدث خطأ. يرجى المحاولة مرة أخرى.');
+    addMessage('⚠️ Sorry, an error occurred. Please try again.');
   } finally {
     hideLoading();
     state.isProcessing = false;
@@ -153,15 +151,24 @@ async function callAI(userText) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
 
-  if (data.type === 'json') return { status: 'report', data: data.content };
+  if (data.type === 'json') return { status: 'report',  data.content };
   return { status: 'clarify', message: data.content };
 }
 
-// ===== Professional Report Renderer (Matches Your Image) =====
+// ===== Professional Report Renderer =====
 function renderReport(r) {
   if (!els.reportContent || !els.reportPanel) return;
 
+  const sevColor = r.Severity_Priority?.toLowerCase().includes('high') || r.Severity_Priority?.toLowerCase().includes('critical') ? 'var(--accent)' : 'var(--text-secondary)';
+
   els.reportContent.innerHTML = `
+    <div class="report-section">
+      <h3 class="section-title">Title</h3>
+      <div class="section-content" style="font-weight: 700; font-size: 1.15rem;">
+        ${r.Title || 'Not specified'}
+      </div>
+    </div>
+
     <div class="report-section">
       <h3 class="section-title">Description</h3>
       <div class="section-content">
@@ -173,9 +180,7 @@ function renderReport(r) {
       <h3 class="section-title">Steps to Reproduce</h3>
       <div class="section-content">
         <ol class="steps-list">
-          ${(r.Steps_to_Reproduce || ['Not specified']).map(step => `
-            <li>${step}</li>
-          `).join('')}
+          ${(r.Steps_to_Reproduce || ['Not specified']).map(step => `<li>${step}</li>`).join('')}
         </ol>
       </div>
     </div>
@@ -196,11 +201,8 @@ function renderReport(r) {
 
     <div class="report-section">
       <h3 class="section-title">Severity/Priority</h3>
-      <div class="section-content">
-        <ul class="bullet-list">
-          <li><strong>Severity:</strong> ${r.Severity_Priority || 'Medium'}</li>
-          <li><strong>Priority:</strong> ${r.Severity_Priority?.split('/')[1] || 'Medium'}</li>
-        </ul>
+      <div class="section-content" style="color: ${sevColor}; font-weight: 600;">
+        ${r.Severity_Priority || 'Medium'}
       </div>
     </div>
 
@@ -230,6 +232,8 @@ function formatReport() {
   
   return `BUG REPORT
 ========================================
+
+Title: ${r.Title || 'Not specified'}
 
 Description:
 ${r.Description || 'Not specified'}
@@ -289,9 +293,8 @@ function setupActionButtons() {
           <div class="message bot-message">
             <div class="message-avatar">🤖</div>
             <div class="message-content">
-              <p><strong>مرحباً بك 👋</strong></p>
-              <p>أنا مساعدك المتخصص في صياغة تقارير الـ Bug Reports الاحترافية.</p>
-              <p>فقط اشرح لي العطل الذي واجهته، وسأقوم بتحويله فوراً إلى تقرير دقيق.</p>
+              <p><strong>Welcome back! 👋</strong></p>
+              <p>Ready to convert your next description into an accurate report.</p>
             </div>
           </div>
         `;
@@ -310,7 +313,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupInputHandlers();
   setupActionButtons();
   
-  // Add theme toggle listener
   if (els.themeToggle) {
     els.themeToggle.addEventListener('click', toggleTheme);
   }
