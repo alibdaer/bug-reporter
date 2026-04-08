@@ -447,16 +447,23 @@ function extractSteps(text) {
 
 function normalizeSteps(steps) {
   if (Array.isArray(steps)) {
-    return steps.map((s) => safeString(s)).filter(Boolean);
+    return steps.map((s) => {
+      // Handle if step is an object
+      if (typeof s === 'object' && s !== null) {
+        // Try common property names
+        return safeString(s.step || s.description || s.text || s.content || JSON.stringify(s));
+      }
+      return safeString(s);
+    }).filter(Boolean);
   }
-
+  
   if (typeof steps === 'string' && steps.trim()) {
     return steps
       .split(/\n?\s*\d+\.\s+|\n-\s+/)
       .map((s) => s.trim())
       .filter(Boolean);
   }
-
+  
   return [];
 }
 
