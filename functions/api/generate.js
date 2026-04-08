@@ -2,145 +2,134 @@ export async function onRequest(context) {
   const { request, env } = context;
 
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) {
-    return new Response(JSON.stringify({ error: 'Server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ error: 'Server error' }, 500);
   }
 
   try {
-    const { messages } = await request.json();
-    
-    const systemPrompt = `You are a Senior Quality Assurance (QA/QC) Engineer with over 15 years of experience in software testing, specializing in writing clear, precise, and professional bug reports.
+    const body = await request.json();
+    const messages = Array.isArray(body.messages) ? body.messages : [];
 
-Your only responsibility is to generate high-quality Bug Reports in English only, regardless of the input language.
+    const systemPrompt = `
+You are a Senior Quality Assurance (QA/QC) Engineer with over 15 years of experience in software testing, specializing in writing highly professional, detailed, and structured bug reports.
 
-Bug Report Structure (Mandatory)
+Your ONLY responsibility is to generate Bug Reports in English.
 
+You must strictly follow all rules below.
+
+--------------------------------------------------
+[STRICT ROLE]
+- You are ONLY allowed to generate Bug Reports.
+- If the user asks anything outside QA/QC or bug reporting, politely refuse.
+
+--------------------------------------------------
+[BUG REPORT STRUCTURE - MANDATORY]
+You MUST ALWAYS use this structure:
 - Title
 - Description
 - Steps to Reproduce
 - Expected Result
 - Actual Result
 - Environment
-- Severity / Priority
+- Severity
+- Priority
 - Impact
 - Attachments
 
-Writing Style (Balanced Output)
+--------------------------------------------------
+[WRITING STYLE - DETAILED OUTPUT]
+- Write in a detailed, professional, and comprehensive manner.
+- Avoid short, minimal, or overly summarized responses.
+- Each section must contain enough explanation and context to be actionable.
+- Prefer complete sentences over short phrases.
+- Do NOT use vague or generic wording.
+- Do NOT repeat information unnecessarily.
 
-- Write in a natural, professional, and balanced style.
-- Avoid overly short or overly long responses.
-- Ensure the report includes enough detail to be actionable, without unnecessary verbosity.
-- Each section should be informative but concise.
+Minimum expectations:
+- Description: explain the issue scenario clearly with enough business and system context.
+- Steps to Reproduce: provide clear, sequential, detailed steps.
+- Expected Result: describe the correct behavior in a complete sentence.
+- Actual Result: explain what actually happened and how it differs from the expected behavior.
+- Impact: clearly explain the effect on the user, payroll process, business flow, or system functionality.
 
-Language Rule
+--------------------------------------------------
+[DETAIL EXPANSION RULE]
+- Always enrich the report using the provided context and HR/Payroll domain knowledge.
+- If the input is short, expand intelligently without inventing unsupported facts.
+- Include, when possible:
+  - what the user was trying to do
+  - where in the system the issue occurred
+  - why the issue is problematic
 
-- Always generate the final output in English only, even if the input is in Arabic or mixed language.
+--------------------------------------------------
+[LANGUAGE RULE]
+- Output must ALWAYS be in English only.
+- Even if input is Arabic or mixed.
 
-Handling Unclear Input
+--------------------------------------------------
+[DOMAIN CONTEXT - HR & PAYROLL]
+- Most issues are related to HR & Payroll systems, especially Menaitech HRMS.
+- Use HR/Payroll domain understanding when writing reports.
 
-- If the provided information is unclear or insufficient, ask for only the necessary details required to complete the report.
-- Be intelligent and selective. Do not ask too many questions.
+--------------------------------------------------
+[TERMINOLOGY MAPPING - CONTEXT AWARE]
+When input is Arabic or mixed:
+- "إجازة" means "Vacation"
+- "مغادرة" means "Leave"
+- "حركة" means "Transaction"
+- "حركات" means "Transactions"
+- "عمل إضافي" means "Overtime"
+- "حسبة الراتب" means "Salary Calculation"
+- salary display/output screen means "Salary Slip"
 
-Domain Awareness (HR & Payroll Systems)
+Apply this mapping based on context only.
 
-- Most scenarios are related to HR & Payroll systems, especially Menaitech HRMS.
-- Use domain knowledge to interpret issues accurately and write relevant reports.
+--------------------------------------------------
+[SMART QUESTIONS]
+- If critical information is missing, ask ONLY the necessary questions.
+- Do NOT ask too many questions.
+- Ask for Employee Code, Salary, Allowances, Social Security, or Health Insurance only if needed.
 
-Context-Aware Terminology Mapping (Critical Rule)
-
-You must intelligently interpret Arabic terms based on context and map them to the correct English terminology:
-
-- "إجازة" → Vacation
-- "مغادرة" → Leave
-- "حركة" → Transaction
-- "حركات" → Transactions
-- "عمل إضافي" → Overtime
-- "حسبة الراتب" → Salary Calculation
-- Salary output location → Salary Slip
-
-Apply this mapping only when the input is in Arabic or mixed language and based on context.
-
-Smart Data Requests (Only When Needed)
-
-If necessary to understand or reproduce the issue, you may ask for:
-
-- Employee Code
-- Salary details
-- Allowances
-- Social Security status
-- Health Insurance status
-
-Do not request these unless they are relevant.
-
-Data Inclusion Rule
-
-If the user provides any of the following details:
-
+--------------------------------------------------
+[DATA HANDLING]
+If the user provides any of the following, include them in the report:
 - Employee Name
 - Employee Code
 - Salary
 - Allowances
-- Username / Password
+- Username
+- Password
 
-You must include them in the bug report for tracking and investigation purposes.
+--------------------------------------------------
+[ENVIRONMENT & VERSION RULE]
+- If Environment and/or Version are provided, include them clearly.
+- If they are NOT provided, do NOT guess or invent them.
+- Leave them as empty strings.
 
-Environment and Version Handling (Important)
+--------------------------------------------------
+[SEVERITY / PRIORITY LOGIC - STRICT]
+General rule:
+- Determine Severity and Priority based on business impact and system effect.
 
-- If the user provides Environment and/or Version details, include them clearly.
-- If NOT provided:
-  - Do NOT assume or generate values.
-  - Leave them empty or blank for later completion.
+Mandatory override:
+- If the issue involves Salary Calculation, salary processing, or Salary Slip:
+  - Severity = High
+  - Priority = High
 
-Severity / Priority Rules (Critical Logic)
+Critical financial impact rule:
+- If the issue involves incorrect salary calculation, missing salary, extra salary, or any money discrepancy:
+  - Severity = Critical
+  - Priority = High
 
-- In general, determine Severity and Priority based on impact and system behavior.
+These rules override general estimation.
 
-Special Rule (Mandatory Override):
-- If the issue involves:
-  - Salary Calculation
-  - Salary processing
-  - Salary Slip
-→ Then ALWAYS set:
-- Severity: High
-- Priority: High
+--------------------------------------------------
+[OUTPUT FORMAT - STRICT JSON ONLY]
+You MUST return ONLY valid JSON in exactly this structure:
 
-Critical Financial Impact Rule:
-- If the issue involves:
-  - Incorrect salary calculation
-  - Missing salary
-  - Extra salary
-  - Any financial discrepancy (increase or decrease in money)
-
-→ Then set:
-- Severity: Critical
-- Priority: High
-
-These rules override any general estimation.
-
-Continuous Learning Behavior (Critical)
-
-- Continuously learn from user inputs, corrections, and patterns during the conversation.
-- Adapt to the system behavior and business logic over time.
-- Improve report accuracy and relevance with each request.
-- Retain context within the session to align with user expectations.
-
-Scope Restriction (Strict)
-
-- You must strictly limit your role to Bug Report generation only.
-- If the user asks about anything outside QA/QC:
-  - Politely refuse
-  - State that your role is limited to bug report generation only
-
-IMPORTANT: You MUST output ONLY valid JSON in this exact format:
 {
   "Title": "string",
   "Description": "string",
@@ -148,108 +137,272 @@ IMPORTANT: You MUST output ONLY valid JSON in this exact format:
   "Expected_Result": "string",
   "Actual_Result": "string",
   "Environment": "string",
-  "Severity_Priority": "High/Medium/Low",
+  "Version": "string",
+  "Severity": "Critical/High/Medium/Low",
+  "Priority": "High/Medium/Low",
   "Impact": "string",
   "Attachments": "string"
 }
 
-DO NOT output any text before or after the JSON. DO NOT use markdown formatting.
-
+Rules:
+- Return JSON only.
+- No markdown.
+- No code block.
+- No explanation before or after JSON.
+- If Environment is not provided, use "".
+- If Version is not provided, use "".
+- If Attachments are not provided, use "".
 `;
 
+    const userMessages = messages
+      .filter((m) => m && m.role === 'user' && typeof m.content === 'string')
+      .map((m) => ({
+        role: 'user',
+        content: buildUserInstruction(m.content)
+      }));
+
+    if (userMessages.length === 0) {
+      return jsonResponse({ error: 'No valid user messages provided' }, 400);
+    }
+
     const aiUrl = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`;
-    
+
     const aiResponse = await fetch(aiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.CF_API_TOKEN}`,
+        Authorization: `Bearer ${env.CF_API_TOKEN}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         messages: [
           { role: 'system', content: systemPrompt },
-          ...messages.filter(m => m.role !== 'system')
+          ...userMessages
         ],
-        max_tokens: 2048,
+        max_tokens: 3000,
         temperature: 0.1
       })
     });
 
     if (!aiResponse.ok) {
-      return new Response(JSON.stringify({ error: 'AI error' }), {
-        status: aiResponse.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const errorText = await safeReadText(aiResponse);
+      return jsonResponse(
+        {
+          error: 'AI error',
+          status: aiResponse.status,
+          details: errorText
+        },
+        aiResponse.status
+      );
     }
 
     const aiData = await aiResponse.json();
-    const rawContent = aiData.result?.response || '';
+    const rawContent = aiData?.result?.response || '';
 
-    // Try to extract JSON first
-    let cleanJSON = rawContent;
-    const jsonMatch = rawContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
-    if (jsonMatch) {
-      cleanJSON = jsonMatch[1];
-    } else {
-      // Extract between first { and last }
-      const first = rawContent.indexOf('{');
-      const last = rawContent.lastIndexOf('}');
-      if (first !== -1 && last !== -1) {
-        cleanJSON = rawContent.substring(first, last + 1);
-      }
-    }
+    const cleanJSON = extractJSONString(rawContent);
 
     try {
       const parsed = JSON.parse(cleanJSON);
-      if (parsed.Title && parsed.Description) {
-        return new Response(JSON.stringify({ type: 'json', content: parsed }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-    } catch (e) {
-      console.error('JSON parse failed:', e);
+      const normalized = normalizeReport(parsed);
+      return jsonResponse({ type: 'json', content: normalized }, 200);
+    } catch (parseError) {
+      console.error('JSON parse failed:', parseError);
+
+      const fallback = fallbackReportFromText(rawContent);
+      return jsonResponse(
+        {
+          type: 'json',
+          content: fallback,
+          warning: 'Model did not return perfectly valid JSON. Fallback structure was used.'
+        },
+        200
+      );
     }
-
-    // Fallback: Convert markdown text to JSON structure
-    const report = {
-      Title: extractField(rawContent, 'Title') || 'Bug Report',
-      Description: extractField(rawContent, 'Description') || rawContent.substring(0, 200),
-      Steps_to_Reproduce: extractSteps(rawContent),
-      Expected_Result: extractField(rawContent, 'Expected Result') || extractField(rawContent, 'Expected_Result') || 'Not specified',
-      Actual_Result: extractField(rawContent, 'Actual Result') || extractField(rawContent, 'Actual_Result') || 'Not specified',
-      Environment: extractField(rawContent, 'Environment') || 'Not specified',
-      Severity_Priority: extractField(rawContent, 'Severity') || extractField(rawContent, 'Severity / Priority') || 'Medium',
-      Impact: extractField(rawContent, 'Impact') || 'Not specified',
-      Attachments: extractField(rawContent, 'Attachments') || 'None'
-    };
-
-    return new Response(JSON.stringify({ type: 'json', content: report }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Internal error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.error('Internal error:', error);
+    return jsonResponse({ error: 'Internal error' }, 500);
   }
 }
 
-// Helper functions to extract fields from markdown text
-function extractField(text, fieldName) {
-  const regex = new RegExp(`\\*\\*${fieldName}:\\*\\*\\s*([^*]+?)(?=\\*\\*|$)`, 'i');
-  const match = text.match(regex);
-  return match ? match[1].trim() : null;
+function buildUserInstruction(issueText) {
+  return `
+Generate a detailed and professional bug report based on the following issue.
+
+Important requirements:
+- The report must be rich in useful details.
+- Do not make the report too short.
+- Expand the Description, Actual Result, and Impact properly.
+- Follow the required JSON structure exactly.
+- If Environment or Version are not mentioned, keep them as empty strings.
+- If the issue is related to salary calculation, salary processing, or salary slip, apply the required Severity/Priority rules.
+- If the issue includes a real salary discrepancy or money difference, set Severity to Critical and Priority to High.
+
+Issue details:
+${issueText}
+`.trim();
+}
+
+function extractJSONString(rawContent) {
+  if (!rawContent || typeof rawContent !== 'string') return '{}';
+
+  const fencedMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  const firstBrace = rawContent.indexOf('{');
+  const lastBrace = rawContent.lastIndexOf('}');
+
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return rawContent.slice(firstBrace, lastBrace + 1).trim();
+  }
+
+  return rawContent.trim();
+}
+
+function normalizeReport(data) {
+  const report = {
+    Title: safeString(data.Title),
+    Description: safeString(data.Description),
+    Steps_to_Reproduce: normalizeSteps(data.Steps_to_Reproduce),
+    Expected_Result: safeString(data.Expected_Result),
+    Actual_Result: safeString(data.Actual_Result),
+    Environment: safeString(data.Environment),
+    Version: safeString(data.Version),
+    Severity: normalizeSeverity(data.Severity),
+    Priority: normalizePriority(data.Priority),
+    Impact: safeString(data.Impact),
+    Attachments: safeString(data.Attachments)
+  };
+
+  return report;
+}
+
+function fallbackReportFromText(text) {
+  return {
+    Title: extractField(text, ['Title']) || 'Bug Report',
+    Description: extractField(text, ['Description']) || '',
+    Steps_to_Reproduce: extractSteps(text),
+    Expected_Result: extractField(text, ['Expected Result', 'Expected_Result']) || '',
+    Actual_Result: extractField(text, ['Actual Result', 'Actual_Result']) || '',
+    Environment: extractField(text, ['Environment']) || '',
+    Version: extractField(text, ['Version']) || '',
+    Severity: normalizeSeverity(extractField(text, ['Severity', 'Severity / Priority']) || 'Medium'),
+    Priority: normalizePriority(extractField(text, ['Priority']) || 'Medium'),
+    Impact: extractField(text, ['Impact']) || '',
+    Attachments: extractField(text, ['Attachments']) || ''
+  };
+}
+
+function extractField(text, fieldNames) {
+  if (!text) return null;
+
+  for (const fieldName of fieldNames) {
+    const patterns = [
+      new RegExp(`\\*\\*${escapeRegExp(fieldName)}:?\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*|$)`, 'i'),
+      new RegExp(`^${escapeRegExp(fieldName)}:?\\s*([\\s\\S]*?)(?=\\n[A-Z][A-Za-z_ /]+:?\\n?|$)`, 'im'),
+      new RegExp(`"${escapeRegExp(fieldName)}"\\s*:\\s*"([^"]*)"`, 'i')
+    ];
+
+    for (const regex of patterns) {
+      const match = text.match(regex);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+  }
+
+  return null;
 }
 
 function extractSteps(text) {
-  const stepsRegex = /\\*\\*Steps to Reproduce:\\*\\*\\s*([\s\S]*?)(?=\\*\\*|$)/i;
-  const match = text.match(stepsRegex);
-  if (!match) return ['Not specified'];
-  
-  const stepsText = match[1];
-  const steps = stepsText.split(/\d+\./).filter(s => s.trim().length > 0);
-  return steps.length > 0 ? steps.map(s => s.trim()) : ['Not specified'];
+  if (!text) return [];
+
+  const stepsBlock =
+    extractField(text, ['Steps to Reproduce', 'Steps_to_Reproduce']) || '';
+
+  if (!stepsBlock) return [];
+
+  if (stepsBlock.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(stepsBlock);
+      if (Array.isArray(parsed)) {
+        return parsed.map((s) => safeString(s)).filter(Boolean);
+      }
+    } catch (_) {}
+  }
+
+  const numbered = stepsBlock
+    .split(/\n?\s*\d+\.\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (numbered.length > 0) return numbered;
+
+  const dashed = stepsBlock
+    .split(/\n-\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (dashed.length > 0) return dashed;
+
+  return [stepsBlock.trim()].filter(Boolean);
+}
+
+function normalizeSteps(steps) {
+  if (Array.isArray(steps)) {
+    return steps.map((s) => safeString(s)).filter(Boolean);
+  }
+
+  if (typeof steps === 'string' && steps.trim()) {
+    return steps
+      .split(/\n?\s*\d+\.\s+|\n-\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeSeverity(value) {
+  const v = safeString(value).toLowerCase();
+  if (v === 'critical') return 'Critical';
+  if (v === 'high') return 'High';
+  if (v === 'medium') return 'Medium';
+  if (v === 'low') return 'Low';
+  return 'Medium';
+}
+
+function normalizePriority(value) {
+  const v = safeString(value).toLowerCase();
+  if (v === 'high') return 'High';
+  if (v === 'medium') return 'Medium';
+  if (v === 'low') return 'Low';
+  return 'Medium';
+}
+
+function safeString(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  return String(value).trim();
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function safeReadText(response) {
+  try {
+    return await response.text();
+  } catch {
+    return '';
+  }
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
 }
