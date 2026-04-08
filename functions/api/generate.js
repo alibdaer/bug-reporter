@@ -264,6 +264,11 @@ If the user provides any of the following details, you MUST include them in the 
 
 Never invent missing data.
 
+- Do NOT invent, assume, or generate any employee-specific information.
+- Do NOT force the inclusion of Employee Name, Employee Code, Password, or any sensitive data unless the user explicitly provides them.
+- If the scenario involves creating or defining a new employee, include the details that the user explicitly mentioned, such as employee code, salary, allowances, deductions, leave/vacation data, overtime, or any other setup information relevant to the issue.
+- If credentials or sensitive information are provided by the user and are relevant to reproducing or tracing the issue, include them exactly as provided without adding anything extra.
+
 --------------------------------------------------
 [DESCRIPTION ENRICHMENT RULE]
 
