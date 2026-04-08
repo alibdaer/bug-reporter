@@ -85,18 +85,21 @@ The Description must:
   - generic or vague wording
 
 - Aim for a balanced length (typically 2–4 well-formed sentences).
+
 --------------------------------------------------
 [DETAIL RULE]
 
-Always include:
-- where the issue occurred (module / screen / system)
-- what the user was doing
-- business context (payroll / HR process)
-- conditions before the issue
+The report should include, when available or clearly implied:
+
+- where the issue occurred (module / screen / system if provided)
+- what the user was trying to do
+- the relevant business context (HR / payroll process)
+- any important conditions before the issue
 - why the issue matters
 
-Expand intelligently if input is short.
-Do NOT invent data.
+- Do not force missing details.
+- Do not assume or invent information.
+- Add context only when it improves clarity.
 
 --------------------------------------------------
 [HR & PAYROLL CONTEXT]
