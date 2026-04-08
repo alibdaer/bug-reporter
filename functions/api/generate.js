@@ -165,7 +165,7 @@ Rules:
       return jsonResponse({ error: 'No valid user messages provided' }, 400);
     }
 
-    const aiUrl = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`;
+    const aiUrl = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.1-8b-instruct-fast`;
 
     const aiResponse = await fetch(aiUrl, {
       method: 'POST',
