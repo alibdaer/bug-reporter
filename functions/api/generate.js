@@ -14,7 +14,7 @@ export async function onRequest(context) {
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const currentReport =
       body.currentReport && typeof body.currentReport === 'object'
-        ? body.currentReport
+        ? normalizeReport(body.currentReport)
         : null;
 
     if (!messages.length) {
@@ -25,27 +25,22 @@ export async function onRequest(context) {
     const isRevision = !!currentReport;
     const parsedContext = parseMenaitechContext(latestUserRequest);
 
-    const systemPrompt = `You are a Senior QA/QC Engineer (15+ years) specialized in Menaitech systems, especially HR, Payroll, MenaPAY, MenaHR, MenaME application, and MenaME Web.
+    const systemPrompt = `You are a Senior QA/QC Engineer with 15+ years of experience in Menaitech systems.
 
-Your ONLY task is to generate or update professional Bug Reports in English.
+Your only job is to generate or update professional bug reports in English for Menaitech products such as MenaPAY, MenaHR, MenaME application, and MenaME Web.
 
---------------------------------------------------
-[STRICT ROLE - VERY IMPORTANT]
-- Your role is strictly limited to Bug Reports only.
-- You are NOT allowed to:
-  - explain concepts
-  - answer general questions
-  - provide advice
-  - engage in discussions
-  - add commentary outside the bug report
-  - ask follow-up questions
-- If the user request is not related to bug reporting:
-  - politely refuse in the JSON output context as best as possible
-  - do NOT provide additional explanation outside the report structure
-- The output must always be a Bug Report only, following the required JSON format.
+==================================================
+[STRICT ROLE]
+- You only write bug reports.
+- Do not answer general questions.
+- Do not explain concepts.
+- Do not provide advice.
+- Do not add commentary outside the bug report.
+- Do not ask follow-up questions.
+- Return JSON only.
 
---------------------------------------------------
-[OUTPUT FORMAT - STRICT JSON ONLY]
+==================================================
+[STRICT JSON OUTPUT]
 Return ONLY valid JSON in this exact structure:
 {
   "Title": "",
@@ -62,125 +57,89 @@ Return ONLY valid JSON in this exact structure:
 }
 
 Do not wrap the JSON in markdown.
-Do not add extra text before or after the JSON.
+Do not add any extra text before or after the JSON.
 
---------------------------------------------------
-[STRUCTURE - MANDATORY]
-The bug report must always contain:
-- Title
-- Description
-- Steps to Reproduce
-- Expected Result
-- Actual Result
-- Environment
-- Version
-- Severity
-- Priority
-- Impact
-- Attachments
+==================================================
+[WRITING STYLE]
+- Write like a professional QA engineer.
+- Be clear, realistic, concise, and complete.
+- The report must be readable and useful.
+- Avoid filler and avoid robotic repetition.
+- Do not write like documentation or a tutorial.
 
---------------------------------------------------
-[LANGUAGE]
-- Output MUST be in English only.
-- Use professional QA wording.
-- Keep wording clear and realistic.
-- Avoid robotic over-explanation.
-
---------------------------------------------------
-[WRITING STYLE - BALANCED DETAIL]
-- Write in a clear, professional, and well-structured manner.
-- The report must be detailed enough to explain the issue correctly, but not excessively long.
-- Avoid very short, vague, or generic wording.
-- Avoid unnecessary repetition.
-- Keep each field focused on its purpose.
-- The report should read like a real QA bug report, not like an essay.
-
---------------------------------------------------
+==================================================
 [TITLE RULES]
-- Title must be concise, specific, and bug-focused.
-- Do not make it too long.
-- Mention the affected process or feature when clear.
-- Avoid unnecessary prefixes like "Bug:" unless strongly needed.
+- Make the title concise and specific.
+- Mention the affected business flow or behavior when clear.
+- Do not make the title too long.
 
---------------------------------------------------
+==================================================
 [DESCRIPTION RULES]
-The Description must:
-- explain where the issue occurred if known
-- describe what the user was trying to do
-- explain the relevant business process
-- state what went wrong
-- remain readable and logically structured
-- usually be around 2-4 strong sentences
-- avoid filler or generic statements
+- Describe what the user tried to do.
+- Describe what went wrong.
+- Include business context when relevant.
+- Keep it focused and realistic.
+- Usually 2 to 4 well-formed sentences.
+- Do not invent unsupported details.
 
-Do NOT:
-- invent system names or module names
-- invent business assumptions unsupported by the user input
+==================================================
+[DATA RULES]
+- Use only information provided by the user.
+- Use only information clearly inferable from the recognized login shorthand patterns defined below.
+- If information is missing, keep the related field generic or empty.
+- Do NOT invent screen names, modules, tabs, buttons, roles, credentials, technical root causes, or workflow details.
+- Do NOT assume hidden actions.
+- Do NOT infer a screen or a path unless the user explicitly mentioned it or it is covered by the tab-opening rules below.
 
---------------------------------------------------
-[DETAIL RULE]
-Include, when available or clearly implied:
-- where the issue occurred
-- what the user was trying to do
-- business context
-- important conditions before the issue
-- why the issue matters
+==================================================
+[MENATECH TAB-OPENING RULES]
+The first step may be inferred only at the tab level, not at the screen level.
 
-Do NOT force missing details.
-Do NOT invent data.
-Do NOT assume hidden steps.
+- If the issue is clearly about payroll, salary, salary slip, deductions, allowances, overtime, insurance, social security, or other employee financial matters, the first step should usually be: "Open the MenaPAY tab."
+- If the issue is clearly about appraisal, performance evaluation, career path, certificates, vacancy, or related HR evaluation flows, the first step should usually be: "Open the MenaHR tab."
+- If the issue is clearly about the mobile application, the first step should usually be: "Open MenaME application."
+- If the issue is clearly about MenaME Web, the first step should usually be: "Open the MenaME Web."
 
---------------------------------------------------
-[MENATECH NAVIGATION RULES - VERY IMPORTANT]
-When writing Steps to Reproduce, use Menaitech-specific navigation behavior and NEVER invent generic modules or screens.
+STRICT:
+- Do not infer any specific screen after that unless the user explicitly mentioned it.
+- Tab-level inference is allowed. Screen-level inference is not allowed.
 
-Tab opening rules:
-- If the issue is related to payroll, salary calculation, salary slip, financial transactions, allowances, deductions, overtime, social security, insurance, net salary, or any employee financial matter → the first step should usually be: "Open the MenaPAY tab."
-- If the issue is related to employee appraisal, performance evaluation, career path, certificates, vacancy, recruitment-related employee evaluation flows, or similar HR evaluation processes → the first step should usually be: "Open the MenaHR tab."
-- If the issue is related to the mobile app version → the first step should usually be: "Open MenaME application."
-- If the issue is related to MenaME web → the first step should usually be: "Open the MenaME Web."
+==================================================
+[STEPS TO REPRODUCE - STRICT]
+This section is extremely important.
 
-STRICT RULES:
-- Do NOT write generic steps like "Log in to the HRMS system as an administrator" unless the user explicitly mentioned login/authentication as part of the issue.
-- Do NOT add "as an administrator" unless the user explicitly mentioned that role.
-- Do NOT invent module names such as "Employee Management module" unless the user explicitly provided that exact screen/module name.
-- Do NOT invent screen names, buttons, or paths that are not explicitly mentioned or strongly implied by the scenario.
-- If employee code is provided, use it only as test data when relevant, but do NOT invent where it was entered unless the screen is clearly known from the user input.
-- Different users may send internal QA values in different styles. Interpret them carefully and conservatively.
+Allowed behavior:
+- Use only actions explicitly mentioned by the user.
+- The only allowed inference is the first step at tab level according to the tab-opening rules above.
+- After the first step, every other step must come from the user's own described actions, data, or business flow.
+- Keep steps concise and realistic.
+- Usually 2 to 5 steps are enough.
+- Use the minimum number of steps needed.
 
---------------------------------------------------
-[STEPS RULES - STRICT]
-Steps to Reproduce must reflect the actual business flow only.
+Forbidden behavior:
+- Do NOT invent any screen, module, page, workflow path, button, field, role, permission, or system path.
+- Do NOT write things like "Navigate to Salary Calculation", "Navigate to Employee Management", or similar, unless the user explicitly mentioned that exact screen or section.
+- Do NOT write "Click on the 'Salary Calculation' button" unless the user explicitly mentioned such a button.
+- Do NOT write "Log in" unless login itself is relevant or explicitly mentioned.
+- Do NOT write "as an administrator" unless the user explicitly mentioned that role.
+- Do NOT convert a general financial issue into "Salary Calculation" unless the user explicitly said Salary Calculation.
+- Do NOT assume where employee code was entered.
+- Do NOT add hidden setup steps from your own assumptions.
 
-- Do NOT invent fake screens, fake modules, fake tabs, or fake buttons.
-- Do NOT write "Navigate to the Employee Management module" unless the user explicitly mentioned that exact module.
-- Do NOT write "Click on the 'Salary Calculation' button" unless the user explicitly mentioned such a button exists.
-- For salary calculation scenarios, prefer natural business wording such as:
-  - "Open the MenaPAY tab."
-  - "Go to Salary Calculation."
-  - "Calculate salary for month X."
-- If a month is mentioned, include it exactly.
-- If an employee code is provided, include it only where logically relevant, without inventing unsupported screen names.
-- Use only the minimum realistic steps needed to reproduce the issue accurately.
-- Usually steps should be around 3-6 steps unless the scenario clearly requires more.
-- Do NOT over-expand obvious actions.
-- Do NOT add unnecessary login steps unless login is directly relevant to reproducing the issue.
-- Keep steps short, logical, and realistic.
+Examples of correct behavior:
+- If the user says there is a rounding issue after clicking Round twice in March and April, do not add Salary Calculation unless the user mentioned Salary Calculation.
+- If the user says there is an issue in Salary Calculation, then you may use Salary Calculation because it was explicitly mentioned.
+- If the user gives an employee code only, use it only where relevant without inventing where it was entered.
 
---------------------------------------------------
-[LOGIN DATA / VERSION / TEST DATA INTERPRETATION - STRICT]
-In Menaitech systems, login is based on:
+==================================================
+[LOGIN DATA / VERSION INTERPRETATION]
+In Menaitech login, the main fields are:
 - Username
 - Password
 - Company Code
 - Branch Code
 
-Users may provide compact QA data in different formats. You must interpret them carefully.
-
-----------------------------------------
-[LOGIN SHORTHAND PATTERNS - HIGH PRIORITY]
-
-Recognized formats:
+Recognized login shorthand patterns:
 
 Pattern 1:
 username/password/companyCode/branchCode
@@ -192,111 +151,59 @@ username,password,companyCode,branchCode
 Example:
 sa,1,mena,5842
 
-If the input matches either pattern:
+If the input matches one of these patterns:
 - Username = first value
 - Password = second value
 - Company Code = third value
 - Branch Code = fourth value
 
-STRICT RULES:
-- Treat these formats as login credentials.
-- Do NOT reinterpret their meaning.
-- Do NOT reorder values.
-- Do NOT drop any value.
+Strict rules:
+- Treat these patterns as login credentials.
+- Do not reorder values.
+- Do not reinterpret their meaning.
+- Do not mix employee code with login shorthand.
+- Do not expose credentials outside the Version field unless login is explicitly relevant to reproduction.
 
-----------------------------------------
-[VERSION / ENVIRONMENT IDENTIFICATION]
-
-Users may provide environment/version indicators such as:
+==================================================
+[VERSION / ENVIRONMENT LABELS]
+Users may also mention version/environment labels such as:
 - QA
 - UAT
 - PROD
-- Aug
 - Jul
+- Aug
 - Revamp
 - New Version
 - SQL2016
 - Aug SQL2016
-- patch names
-- or other internal release labels
+- patch labels
+- similar internal release names
 
-RULES:
-- If a value clearly represents environment or version, classify it as Version.
-- Do NOT assume every short token is a version unless context supports it.
-- Version labels may appear:
-  - alone
-  - alongside login shorthand
-  - or inside free text
+Rules:
+- If clearly present, put them in Version.
+- If login shorthand and environment/version both exist, include both in Version.
+- Keep Version structured and clean.
+- Do not invent version names.
 
-----------------------------------------
-[EMPLOYEE / TEST DATA IDENTIFICATION]
-
-Users may also provide:
-- Employee Codes (for example: emp3245, 3452, etc.)
-- Test values
-- Internal references
-
-RULES:
-- Treat employee codes as test data, NOT login credentials.
-- Do NOT mix employee code with login parsing.
-- Use employee code only where logically relevant.
-- Do NOT invent where it was entered.
-
-----------------------------------------
-[VERSION FIELD CONSTRUCTION - VERY IMPORTANT]
-
-When constructing the Version field:
-
-Case 1: Login shorthand only
-Format:
+==================================================
+[VERSION FIELD FORMAT]
+Case 1: login shorthand only
 Username: <value>
 Password: <value>
 Company Code: <value>
 Branch Code: <value>
 
-Case 2: Version/environment only
-Format:
+Case 2: version/environment only
 Environment/Version: <value>
 
-Case 3: Both login shorthand + version exist
-Format:
+Case 3: both exist
 Environment/Version: <value>
 Username: <value>
 Password: <value>
 Company Code: <value>
 Branch Code: <value>
 
-----------------------------------------
-[CRITICAL RULES]
-- Do NOT expose unnecessary credentials unless they are required for reproduction.
-- Do NOT place login credentials inside Steps unless login itself is part of the issue.
-- Do NOT guess missing values.
-- Do NOT invent login data.
-- Do NOT confuse employee code with username.
-- Always keep Version field clean, structured, and readable.
-
---------------------------------------------------
-[ENVIRONMENT RULE]
-- If the user explicitly gives environment details, include them in Environment.
-- If not provided, return an empty string for Environment.
-- Do not move login shorthand into Environment unless the user clearly intended that.
-
---------------------------------------------------
-[BUG UNDERSTANDING]
-Reflect the bug type implicitly if relevant:
-- UI
-- Backend
-- Calculation
-- Validation
-- Workflow
-- Permission
-- Data mismatch
-- App / Web issue
-
-Do not add a separate bug type field.
-Do not guess a technical root cause.
-
---------------------------------------------------
+==================================================
 [SEVERITY / PRIORITY]
 Allowed Severity values:
 - Critical
@@ -310,47 +217,31 @@ Allowed Priority values:
 - Medium
 - Low
 
-General rules:
-- Assign based on business impact and urgency.
-- If the issue involves Salary Calculation or Salary Slip → Severity: High, Priority: High
-- If the issue causes financial discrepancy (wrong salary, extra amount, missing amount, incorrect net salary) → Severity: Critical, Priority: Urgent
-- Do NOT change Severity unless the user explicitly asks to change Severity during a revision.
-- Do NOT change Priority unless the user explicitly asks to change Priority during a revision.
+Guidance:
+- If the issue causes a financial discrepancy such as wrong salary, extra amount, missing amount, or incorrect net salary, usually use Severity = Critical and Priority = Urgent.
+- If the issue involves salary calculation or salary slip without a proven financial discrepancy, usually use Severity = High and Priority = High.
+- During revisions, do not change Severity unless the user explicitly asked to change Severity.
+- During revisions, do not change Priority unless the user explicitly asked to change Priority.
 
---------------------------------------------------
-[REVISION RULES - VERY IMPORTANT]
-If the user asks to modify, refine, shorten, rewrite, add, remove, or correct a specific part of the current bug report:
-- You MUST treat the existing report as the base version.
-- You MUST update ONLY the requested field or section.
-- You MUST keep all other fields unchanged.
-- You MUST NOT rewrite, improve, shorten, expand, or reformat any field unless the user explicitly asked for that.
-- If a field is not explicitly mentioned in the user's request, it MUST remain unchanged.
-- Return the FULL bug report JSON after applying the requested change.
-- Minimal change only.
-- Do NOT regenerate the report from scratch when a current report is provided.
-- Do NOT change Severity unless the user explicitly asks to change Severity.
-- Do NOT change Priority unless the user explicitly asks to change Priority.
-- Do NOT change Steps unless the user explicitly asks to change Steps or the requested change directly targets them.
-- Do NOT change Description unless the user explicitly asks to change Description or the requested change directly targets it.
-- Do NOT change Title unless the user explicitly asks to change Title.
-- Do NOT remove details unless the user explicitly asks to shorten, simplify, or remove them.
-- If the user asks to add something, add it only in the relevant field(s), without rewriting unrelated fields.
-- If the user asks to fix grammar in one section, fix grammar in that section only.
-- If the user requests a change in any specific field, update that field only.
-- The rest of the report must remain exactly unchanged, including wording, order, and content.
-- This rule applies to ALL fields, not only Severity or Priority.
+==================================================
+[REVISION RULES - STRICT]
+If a current report is provided, treat it as the base version.
 
---------------------------------------------------
-[DATA RULE]
-- Include only data provided by the user or clearly inferable from the recognized login shorthand patterns.
-- Do NOT invent employee names, IDs, modules, screens, tabs, buttons, or credentials.
-- If values are not clear, leave the related field generic or empty rather than inventing.
+- Update ONLY the field or section explicitly requested by the user.
+- Keep all other fields exactly unchanged.
+- Do not rewrite unrelated fields.
+- Do not improve unrelated wording.
+- Do not regenerate the whole report from scratch.
+- If the user asks to fix one field only, change one field only.
+- If the user asks to add something to one section, add it only there.
+- If the user asks to shorten one section, shorten only that section.
+- Return the full JSON after applying the change.
 
---------------------------------------------------
+==================================================
 [FINAL REMINDER]
-You must behave like a professional QA bug report writer for Menaitech systems.
-Return only valid JSON in the required structure.
-`;
+Be conservative.
+If the user did not say it, do not invent it.
+The only allowed default inference in steps is the first tab-opening step.`;
 
     const preparedMessages = buildModelMessages(messages, currentReport);
 
@@ -364,8 +255,8 @@ Return only valid JSON in the required structure.
       },
       body: JSON.stringify({
         messages: [{ role: 'system', content: systemPrompt }, ...preparedMessages],
-        max_tokens: 3000,
-        temperature: 0.05
+        max_tokens: 2600,
+        temperature: 0.03
       })
     });
 
@@ -384,33 +275,27 @@ Return only valid JSON in the required structure.
     let normalized;
 
     try {
-      const parsed = JSON.parse(cleanJSON);
-      normalized = normalizeReport(parsed);
+      normalized = normalizeReport(JSON.parse(cleanJSON));
     } catch (parseError) {
       console.error('JSON parse failed:', parseError);
       normalized = fallbackReportFromText(rawContent);
     }
 
     if (isRevision) {
-      normalized = preserveUnrequestedFields(
-        normalizeReport(currentReport),
-        normalized,
-        latestUserRequest
-      );
+      normalized = preserveUnrequestedFields(currentReport, normalized, latestUserRequest);
     }
 
     normalized = applyExplicitFieldOverrides(normalized, latestUserRequest);
-    normalized = applyParsedMenaitechContext(normalized, parsedContext, latestUserRequest);
-
-    const assistantMessage = isRevision
-      ? 'I updated the report based on your latest request.'
-      : 'Here is your bug report.';
+    normalized = applyParsedMenaitechContext(normalized, parsedContext, latestUserRequest, currentReport);
+    normalized = sanitizeReportAgainstAssumptions(normalized, latestUserRequest, currentReport);
 
     return jsonResponse(
       {
         type: 'json',
         content: normalized,
-        message: assistantMessage
+        message: isRevision
+          ? 'I updated the report based on your latest request.'
+          : 'Here is your bug report.'
       },
       200
     );
@@ -421,7 +306,7 @@ Return only valid JSON in the required structure.
 }
 
 function buildModelMessages(messages, currentReport) {
-  const sanitizedMessages = messages
+  return messages
     .filter(
       (message) =>
         message &&
@@ -430,14 +315,11 @@ function buildModelMessages(messages, currentReport) {
     )
     .map((message, index, array) => {
       if (message.role === 'assistant') {
-        return {
-          role: 'assistant',
-          content: 'Report delivered.'
-        };
+        return { role: 'assistant', content: 'Report delivered.' };
       }
 
+      const userText = safeString(message.content);
       const isLatest = index === array.length - 1;
-      const userText = message.content.trim();
 
       if (!isLatest) {
         return {
@@ -453,28 +335,19 @@ function buildModelMessages(messages, currentReport) {
           : buildInitialUserInstruction(userText)
       };
     });
-
-  return sanitizedMessages;
 }
 
 function buildHistoricalUserInstruction(issueText) {
-  return `Generate a professional Menaitech bug report based on the issue below.
+  return `Generate a professional Menaitech bug report for the issue below.
 
-Strict requirements:
-- Follow the exact JSON structure defined in the system instructions.
-- Keep the report realistic, professional, and readable.
-- Do NOT invent screens, modules, or buttons.
-- Use Menaitech-specific logic where relevant.
-- Keep steps concise and logical.
-- If the issue is related to finance/payroll, steps should usually start with "Open the MenaPAY tab."
-- If the issue is related to appraisal/performance/career path/certificates/vacancy, steps should usually start with "Open the MenaHR tab."
-- If the issue is related to the mobile app, steps should usually start with "Open MenaME application."
-- If the issue is related to MenaME web, steps should usually start with "Open the MenaME Web."
-- Do NOT add login steps unless login itself is relevant.
-- Do NOT use generic phrases like "as an administrator" unless explicitly stated.
-- If Environment or Version are not provided, leave them empty unless recognized shorthand login/version data is clearly present.
-- Financial discrepancy issues should usually be Severity = Critical and Priority = Urgent.
-- Salary Calculation / Salary Slip issues should usually be Severity = High and Priority = High unless a financial discrepancy makes them more severe.
+Strict instructions:
+- Use the exact JSON structure.
+- Be conservative.
+- Use only the user's information.
+- The only allowed inference in steps is the first tab-opening step.
+- Do not invent screens, modules, buttons, roles, or hidden actions.
+- Do not turn a general financial issue into Salary Calculation unless the user explicitly mentioned Salary Calculation.
+- Keep steps concise and realistic.
 
 Issue details:
 ${issueText}`;
@@ -487,22 +360,16 @@ function buildInitialUserInstruction(issueText) {
 function buildRevisionUserInstruction(requestText, currentReport) {
   return `You previously generated a bug report.
 
-Now update the SAME report according to the user's latest request.
+Update the SAME report according to the user's latest request.
 
 STRICT UPDATE RULES:
-- The current report is the base version.
-- Apply minimal changes only.
-- Update ONLY the explicitly requested field or section.
-- Keep every other field EXACTLY unchanged.
-- Do NOT regenerate the report from scratch.
-- Do NOT rewrite unrelated fields.
-- Do NOT improve unrelated wording.
-- Do NOT adjust Severity unless explicitly requested.
-- Do NOT adjust Priority unless explicitly requested.
-- Do NOT modify Steps unless explicitly requested.
-- Do NOT modify Title, Description, Expected Result, Actual Result, Environment, Version, Impact, or Attachments unless explicitly requested.
-- Preserve wording and structure of all untouched fields exactly as-is.
-- Return the full updated bug report in the exact JSON structure only.
+- Use the current report as the base version.
+- Modify only the explicitly requested field or section.
+- Keep every other field exactly unchanged.
+- Do not regenerate from scratch.
+- Do not improve unrelated wording.
+- Do not rewrite unrelated sections.
+- Return the full JSON structure only.
 
 Current report JSON:
 ${JSON.stringify(normalizeReport(currentReport), null, 2)}
@@ -519,8 +386,7 @@ function preserveUnrequestedFields(currentReport, updatedReport, latestUserReque
   const fieldMatchers = {
     Title: /\btitle\b/,
     Description: /\bdescription\b|\bdesc\b/,
-    Steps_to_Reproduce:
-      /\bsteps?\b|\breproduce\b|\breproduction\b|\bsteps to reproduce\b/,
+    Steps_to_Reproduce: /\bsteps?\b|\breproduce\b|\breproduction\b|\bsteps to reproduce\b/,
     Expected_Result: /\bexpected\b|\bexpected result\b/,
     Actual_Result: /\bactual\b|\bactual result\b/,
     Environment: /\benvironment\b|\benv\b/,
@@ -531,17 +397,12 @@ function preserveUnrequestedFields(currentReport, updatedReport, latestUserReque
     Attachments: /\battachment\b|\battachments\b|\bscreenshot\b|\bvideo\b|\bfile\b/
   };
 
-  const broadRewriteRequest =
-    /\b(rewrite|regenerate|improve the report|improve all|rewrite all|rewrite report|revise the report|update the report|refine the report|make it better|rephrase the report)\b/.test(
+  const broadRewrite =
+    /\b(rewrite all|rewrite report|regenerate|revise the report|update the report|improve the report|rephrase the report)\b/.test(
       request
     ) && !hasSpecificFieldMention(request, fieldMatchers);
 
-  const addGeneralInfo =
-    /\b(add|include)\b/.test(request) && !hasSpecificFieldMention(request, fieldMatchers);
-
-  if (broadRewriteRequest || addGeneralInfo) {
-    return proposed;
-  }
+  if (broadRewrite) return proposed;
 
   const allowedFields = new Set();
 
@@ -551,28 +412,11 @@ function preserveUnrequestedFields(currentReport, updatedReport, latestUserReque
     }
   }
 
-  if (/\bgrammar\b|\btypo\b|\bwording\b/.test(request) && !allowedFields.size) {
-    allowedFields.add('Description');
-  }
-
-  if (/\bshorten\b|\bsimplify\b|\bmake it shorter\b/.test(request) && !allowedFields.size) {
-    allowedFields.add('Description');
-  }
-
-  if (/\badd\b/.test(request) && /\bstep\b/.test(request)) {
-    allowedFields.add('Steps_to_Reproduce');
-  }
-
-  if (/\bremove\b/.test(request) && /\bstep\b/.test(request)) {
-    allowedFields.add('Steps_to_Reproduce');
-  }
-
   if (!allowedFields.size) {
     return proposed;
   }
 
   const result = { ...base };
-
   for (const fieldName of allowedFields) {
     result[fieldName] = proposed[fieldName];
   }
@@ -591,14 +435,12 @@ function applyExplicitFieldOverrides(report, latestUserRequest) {
   const severityMatch =
     request.match(
       /(?:change|update|set|make|adjust)\s+(?:the\s+)?severity\s+(?:to|as)?\s*(critical|high|medium|low)/i
-    ) ||
-    request.match(/severity\s*(?:to|as|=|becomes?)\s*(critical|high|medium|low)/i);
+    ) || request.match(/severity\s*(?:to|as|=|becomes?)\s*(critical|high|medium|low)/i);
 
   const priorityMatch =
     request.match(
       /(?:change|update|set|make|adjust)\s+(?:the\s+)?priority\s+(?:to|as)?\s*(urgent|high|medium|low)/i
-    ) ||
-    request.match(/priority\s*(?:to|as|=|becomes?)\s*(urgent|high|medium|low)/i);
+    ) || request.match(/priority\s*(?:to|as|=|becomes?)\s*(urgent|high|medium|low)/i);
 
   if (severityMatch?.[1]) {
     updated.Severity = normalizeSeverity(severityMatch[1]);
@@ -613,146 +455,96 @@ function applyExplicitFieldOverrides(report, latestUserRequest) {
 
 function parseMenaitechContext(userText) {
   const text = safeString(userText);
-  if (!text) {
-    return {
-      login: null,
-      versionLabel: '',
-      employeeCode: '',
-      mentionsLogin: false
-    };
-  }
-
-  const login = parseLoginShorthand(text);
-  const versionLabel = detectVersionLabel(text, login);
-  const employeeCode = detectEmployeeCode(text, login);
-  const mentionsLogin = /\blogin\b|\bsign in\b|\bsignin\b|\blog in\b|\bauthentication\b|\bcredentials\b/.test(
-    text.toLowerCase()
-  );
 
   return {
-    login,
-    versionLabel,
-    employeeCode,
-    mentionsLogin
+    login: parseLoginShorthand(text),
+    versionLabel: detectVersionLabel(text),
+    employeeCode: detectEmployeeCode(text),
+    mentionsLogin: /\blogin\b|\blog in\b|\bsign in\b|\bsignin\b|\bauthentication\b|\bcredentials\b/i.test(text)
   };
 }
 
 function parseLoginShorthand(text) {
   const slashMatch = text.match(/(?:^|[\s(])([^\/\s,]+)\/([^\/\s,]+)\/([^\/\s,]+)\/([^\/\s,]+)(?:[\s),.]|$)/);
+  if (slashMatch) {
+    return {
+      username: safeString(slashMatch[1]),
+      password: safeString(slashMatch[2]),
+      companyCode: safeString(slashMatch[3]),
+      branchCode: safeString(slashMatch[4])
+    };
+  }
+
   const commaMatch = text.match(/(?:^|[\s(])([^,\s\/]+),([^,\s\/]+),([^,\s\/]+),([^,\s\/]+)(?:[\s),.]|$)/);
+  if (commaMatch) {
+    return {
+      username: safeString(commaMatch[1]),
+      password: safeString(commaMatch[2]),
+      companyCode: safeString(commaMatch[3]),
+      branchCode: safeString(commaMatch[4])
+    };
+  }
 
-  const match = slashMatch || commaMatch;
-  if (!match) return null;
-
-  return {
-    username: safeString(match[1]),
-    password: safeString(match[2]),
-    companyCode: safeString(match[3]),
-    branchCode: safeString(match[4])
-  };
+  return null;
 }
 
-function detectVersionLabel(text, login) {
-  const cleaned = safeString(text);
-
-  const knownPatterns = [
+function detectVersionLabel(text) {
+  const patterns = [
     /\baug\s*sql\s*2016\b/i,
     /\bnew version\b/i,
     /\brevamp\b/i,
-    /\bqa\b/i,
     /\buat\b/i,
     /\bprod\b/i,
+    /\bqa\b/i,
     /\baug\b/i,
     /\bjul\b/i,
     /\bsql\s*2016\b/i,
     /\bpatch[\w-]*\b/i
   ];
 
-  for (const pattern of knownPatterns) {
-    const match = cleaned.match(pattern);
-    if (match?.[0]) return match[0].trim();
-  }
-
-  if (login) {
-    return '';
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[0]) return safeString(match[0]);
   }
 
   return '';
 }
 
-function detectEmployeeCode(text, login) {
-  const cleaned = safeString(text);
-
-  const codePatterns = [
+function detectEmployeeCode(text) {
+  const patterns = [
     /\bemp\d+\b/i,
     /\bemployee\s*code\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i
   ];
 
-  for (const pattern of codePatterns) {
-    const match = cleaned.match(pattern);
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
     if (!match) continue;
-
-    if (match[1]) {
-      return safeString(match[1]);
-    }
-
-    return safeString(match[0]);
-  }
-
-  if (login) {
-    const rawTokens = extractRawTokens(cleaned);
-    if (rawTokens.length === 4) return '';
+    return safeString(match[1] || match[0]);
   }
 
   return '';
 }
 
-function extractRawTokens(text) {
-  if (!text) return [];
-
-  if (text.includes('/')) {
-    const slashParts = text.split('/').map((part) => part.trim()).filter(Boolean);
-    if (slashParts.length === 4) return slashParts;
-  }
-
-  if (text.includes(',')) {
-    const commaParts = text.split(',').map((part) => part.trim()).filter(Boolean);
-    if (commaParts.length === 4) return commaParts;
-  }
-
-  return [];
-}
-
-function applyParsedMenaitechContext(report, parsedContext, latestUserRequest) {
+function applyParsedMenaitechContext(report, parsedContext, latestUserRequest, currentReport) {
   const updated = normalizeReport(report);
   const request = safeString(latestUserRequest).toLowerCase();
 
-  const shouldUpdateVersion =
-    !!parsedContext &&
-    (
-      !!parsedContext.login ||
-      !!parsedContext.versionLabel
-    ) &&
-    (
-      !updated.Version ||
-      /\bversion\b|\blogin\b|\busername\b|\bpassword\b|\bcompany code\b|\bbranch code\b/.test(request) ||
-      !request
-    );
+  const userExplicitlyAskedToChangeVersion =
+    /\bversion\b|\blogin\b|\busername\b|\bpassword\b|\bcompany code\b|\bbranch code\b/.test(request);
 
-  if (shouldUpdateVersion) {
+  if ((!currentReport || userExplicitlyAskedToChangeVersion || !updated.Version) &&
+      (parsedContext.login || parsedContext.versionLabel)) {
     updated.Version = buildVersionField(parsedContext, updated.Version);
   }
 
-  if (!updated.Steps_to_Reproduce.length) {
-    updated.Steps_to_Reproduce = buildFallbackStepsFromContext(parsedContext, latestUserRequest);
+  if ((!currentReport || !updated.Steps_to_Reproduce.length) && latestUserRequest) {
+    updated.Steps_to_Reproduce = buildConservativeFallbackSteps(parsedContext, latestUserRequest, updated.Steps_to_Reproduce);
   }
 
   return normalizeReport(updated);
 }
 
 function buildVersionField(parsedContext, existingVersion) {
-  if (!parsedContext) return existingVersion || '';
-
   const parts = [];
 
   if (parsedContext.versionLabel) {
@@ -766,84 +558,174 @@ function buildVersionField(parsedContext, existingVersion) {
     parts.push(`Branch Code: ${parsedContext.login.branchCode}`);
   }
 
-  if (!parts.length) {
-    return existingVersion || '';
-  }
-
-  return parts.join('\n');
+  return parts.length ? parts.join('\n') : safeString(existingVersion);
 }
 
-function buildFallbackStepsFromContext(parsedContext, latestUserRequest) {
-  const request = safeString(latestUserRequest);
-  const lower = request.toLowerCase();
+function buildConservativeFallbackSteps(parsedContext, latestUserRequest, existingSteps) {
+  const existing = normalizeSteps(existingSteps);
+  if (existing.length) return existing;
 
+  const lower = safeString(latestUserRequest).toLowerCase();
   const steps = [];
-  const firstStep = inferFirstStep(lower);
+  const tabStep = inferFirstTabStep(lower);
 
-  if (firstStep) {
-    steps.push(firstStep);
+  if (tabStep) {
+    steps.push(tabStep);
   }
 
-  if (/\bsalary calculation\b|\bcalculate salary\b|\bsalary\b|\bpayroll\b/.test(lower)) {
-    steps.push('Go to Salary Calculation.');
-
-    const monthMatch =
-      request.match(/\bmonth\s+([A-Za-z0-9_-]+)/i) ||
-      request.match(/\bfor\s+month\s+([A-Za-z0-9_-]+)/i);
-
-    if (monthMatch?.[1]) {
-      steps.push(`Calculate salary for month ${monthMatch[1]}.`);
-    } else {
-      steps.push('Calculate the salary for the required month.');
+  const explicitUserActions = extractExplicitActions(latestUserRequest);
+  for (const action of explicitUserActions) {
+    if (!steps.includes(action)) {
+      steps.push(action);
     }
   }
 
-  if (parsedContext?.employeeCode) {
+  if (parsedContext.employeeCode && !steps.some((step) => step.toLowerCase().includes(parsedContext.employeeCode.toLowerCase()))) {
     steps.push(`Use employee code ${parsedContext.employeeCode} where applicable.`);
   }
 
-  return steps.slice(0, 6);
+  return steps.slice(0, 5);
 }
 
-function inferFirstStep(lowerText) {
-  if (
-    /\bmename application\b|\bmobile\b|\bapp\b|\bandroid\b|\bios\b/.test(lowerText)
-  ) {
-    return 'Open MenaME application.';
-  }
-
-  if (
-    /\bmename web\b|\bmena me web\b|\bweb version\b/.test(lowerText)
-  ) {
+function inferFirstTabStep(lowerText) {
+  if (/\bmename web\b|\bmena me web\b/.test(lowerText)) {
     return 'Open the MenaME Web.';
   }
 
-  if (
-    /\bappraisal\b|\bperformance\b|\bcareer path\b|\bcertificate\b|\bcertificates\b|\bvacancy\b|\brecruitment\b/.test(
-      lowerText
-    )
-  ) {
+  if (/\bmobile\b|\bapplication\b|\bapp\b|\bandroid\b|\bios\b|\bmename\b/.test(lowerText) &&
+      !/\bweb\b/.test(lowerText)) {
+    return 'Open MenaME application.';
+  }
+
+  if (/\bappraisal\b|\bperformance\b|\bcareer path\b|\bcertificate\b|\bcertificates\b|\bvacancy\b/.test(lowerText)) {
     return 'Open the MenaHR tab.';
   }
 
-  if (
-    /\bpayroll\b|\bsalary\b|\bsalary calculation\b|\bsalary slip\b|\ballowance\b|\bdeduction\b|\bovertime\b|\bsocial security\b|\binsurance\b|\bnet salary\b|\bfinancial\b/.test(
-      lowerText
-    )
-  ) {
+  if (/\bpayroll\b|\bsalary\b|\bsalary slip\b|\ballowance\b|\bdeduction\b|\bovertime\b|\bsocial security\b|\binsurance\b|\bnet salary\b|\bfinancial\b/.test(lowerText)) {
     return 'Open the MenaPAY tab.';
   }
 
   return '';
 }
 
+function extractExplicitActions(text) {
+  const actions = [];
+  const normalized = safeString(text);
+
+  const patterns = [
+    /\bgo to\s+([^.:\n]+)\b/gi,
+    /\bopen\s+([^.:\n]+)\b/gi,
+    /\bclick\s+([^.:\n]+)\b/gi,
+    /\bpress\s+([^.:\n]+)\b/gi,
+    /\bselect\s+([^.:\n]+)\b/gi,
+    /\bcalculate\s+([^.:\n]+)\b/gi,
+    /\bverify\s+that\s+([^.:\n]+)\b/gi,
+    /\bobserve\s+that\s+([^.:\n]+)\b/gi
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(normalized)) !== null) {
+      const full = safeString(match[0]);
+      if (full && !actions.includes(capitalizeStep(full))) {
+        actions.push(capitalizeStep(full));
+      }
+    }
+  }
+
+  return actions;
+}
+
+function sanitizeReportAgainstAssumptions(report, latestUserRequest, currentReport) {
+  const cleaned = normalizeReport(report);
+  const lowerRequest = safeString(latestUserRequest).toLowerCase();
+  const explicitTerms = getExplicitTerms(lowerRequest);
+
+  cleaned.Steps_to_Reproduce = normalizeSteps(cleaned.Steps_to_Reproduce)
+    .map((step) => sanitizeStep(step, lowerRequest, explicitTerms))
+    .filter(Boolean);
+
+  if (!cleaned.Steps_to_Reproduce.length && !currentReport) {
+    const fallback = buildConservativeFallbackSteps(parseMenaitechContext(latestUserRequest), latestUserRequest, []);
+    cleaned.Steps_to_Reproduce = fallback.map((step) => sanitizeStep(step, lowerRequest, explicitTerms)).filter(Boolean);
+  }
+
+  return normalizeReport(cleaned);
+}
+
+function sanitizeStep(step, lowerRequest, explicitTerms) {
+  let value = safeString(step);
+  if (!value) return '';
+
+  value = value.replace(/\bas an administrator\b/gi, '').trim();
+  value = value.replace(/\s{2,}/g, ' ').trim();
+
+  if (/employee management module/i.test(value) && !explicitTerms.has('employee management module')) {
+    return '';
+  }
+
+  if (/salary calculation/i.test(value) && !explicitTerms.has('salary calculation')) {
+    if (/navigate/i.test(value) || /go to/i.test(value) || /click/i.test(value)) {
+      return '';
+    }
+  }
+
+  if (/log in|login|sign in/i.test(value) && !/\blogin\b|\blog in\b|\bsign in\b|\bsignin\b/.test(lowerRequest)) {
+    return '';
+  }
+
+  if (/click on the ['"].+['"] button/i.test(value)) {
+    const buttonName = value.match(/click on the ['"](.+?)['"] button/i)?.[1]?.toLowerCase();
+    if (buttonName && !lowerRequest.includes(buttonName)) {
+      return '';
+    }
+  }
+
+  if (/navigate to/i.test(value)) {
+    const destination = value.replace(/^navigate to\s+/i, '').replace(/\.$/, '').toLowerCase();
+    if (destination && !lowerRequest.includes(destination)) {
+      return '';
+    }
+  }
+
+  return capitalizeSentence(value);
+}
+
+function getExplicitTerms(lowerRequest) {
+  const terms = new Set();
+  const knownTerms = [
+    'salary calculation',
+    'employee management module',
+    'mename web',
+    'menapay',
+    'menahr',
+    'round'
+  ];
+
+  for (const term of knownTerms) {
+    if (lowerRequest.includes(term)) {
+      terms.add(term);
+    }
+  }
+
+  return terms;
+}
+
+function capitalizeStep(step) {
+  return capitalizeSentence(step.endsWith('.') ? step : `${step}.`);
+}
+
+function capitalizeSentence(text) {
+  const value = safeString(text);
+  if (!value) return '';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function extractJSONString(rawContent) {
   if (!rawContent || typeof rawContent !== 'string') return '{}';
 
   const fencedMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fencedMatch?.[1]) {
-    return fencedMatch[1].trim();
-  }
+  if (fencedMatch?.[1]) return fencedMatch[1].trim();
 
   const firstBrace = rawContent.indexOf('{');
   const lastBrace = rawContent.lastIndexOf('}');
@@ -879,9 +761,7 @@ function fallbackReportFromText(text) {
     Actual_Result: extractField(text, ['Actual Result', 'Actual_Result']) || '',
     Environment: extractField(text, ['Environment']) || '',
     Version: extractField(text, ['Version']) || '',
-    Severity: normalizeSeverity(
-      extractField(text, ['Severity', 'Severity / Priority']) || 'Medium'
-    ),
+    Severity: normalizeSeverity(extractField(text, ['Severity']) || 'Medium'),
     Priority: normalizePriority(extractField(text, ['Priority']) || 'Medium'),
     Impact: extractField(text, ['Impact']) || '',
     Attachments: normalizeAttachments(extractField(text, ['Attachments']) || '')
@@ -893,16 +773,14 @@ function extractField(text, fieldNames) {
 
   for (const fieldName of fieldNames) {
     const patterns = [
-      new RegExp(`\\*\\*${escapeRegExp(fieldName)}:?\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*|$)`, 'i'),
+      new RegExp(`"${escapeRegExp(fieldName)}"\\s*:\\s*"([^"]*)"`, 'i'),
       new RegExp(`^${escapeRegExp(fieldName)}:?\\s*([\\s\\S]*?)(?=\\n[A-Z][A-Za-z_ /]+:?\\n?|$)`, 'im'),
-      new RegExp(`"${escapeRegExp(fieldName)}"\\s*:\\s*"([^"]*)"`, 'i')
+      new RegExp(`\\*\\*${escapeRegExp(fieldName)}:?\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*|$)`, 'i')
     ];
 
     for (const regex of patterns) {
       const match = text.match(regex);
-      if (match?.[1]) {
-        return match[1].trim();
-      }
+      if (match?.[1]) return safeString(match[1]);
     }
   }
 
@@ -910,35 +788,31 @@ function extractField(text, fieldNames) {
 }
 
 function extractSteps(text) {
-  if (!text) return [];
-
   const stepsBlock = extractField(text, ['Steps to Reproduce', 'Steps_to_Reproduce']) || '';
   if (!stepsBlock) return [];
 
   if (stepsBlock.startsWith('[')) {
     try {
       const parsed = JSON.parse(stepsBlock);
-      if (Array.isArray(parsed)) {
-        return parsed.map((step) => safeString(step)).filter(Boolean);
-      }
+      if (Array.isArray(parsed)) return parsed.map((step) => safeString(step)).filter(Boolean);
     } catch (_) {}
   }
 
   const numbered = stepsBlock
     .split(/\n?\s*\d+\.\s+/)
-    .map((step) => step.trim())
+    .map((step) => safeString(step))
     .filter(Boolean);
 
   if (numbered.length) return numbered;
 
   const dashed = stepsBlock
     .split(/\n-\s+/)
-    .map((step) => step.trim())
+    .map((step) => safeString(step))
     .filter(Boolean);
 
   if (dashed.length) return dashed;
 
-  return [stepsBlock.trim()].filter(Boolean);
+  return [safeString(stepsBlock)].filter(Boolean);
 }
 
 function normalizeSteps(steps) {
@@ -948,10 +822,10 @@ function normalizeSteps(steps) {
         if (typeof step === 'object' && step !== null) {
           return safeString(
             step.step ||
-              step.description ||
-              step.text ||
-              step.content ||
-              JSON.stringify(step)
+            step.description ||
+            step.text ||
+            step.content ||
+            JSON.stringify(step)
           );
         }
         return safeString(step);
@@ -963,7 +837,7 @@ function normalizeSteps(steps) {
   if (typeof steps === 'string' && steps.trim()) {
     return steps
       .split(/\n?\s*\d+\.\s+|\n-\s+/)
-      .map((step) => step.trim())
+      .map((step) => safeString(step))
       .filter(Boolean)
       .slice(0, 10);
   }
@@ -973,9 +847,8 @@ function normalizeSteps(steps) {
 
 function normalizeAttachments(value) {
   if (Array.isArray(value)) {
-    return value.map((item) => safeString(item)).filter(Boolean);
+    return value.map((item) => safeString(item)).filter(Boolean).join('\n');
   }
-
   return safeString(value);
 }
 
@@ -1003,8 +876,8 @@ function safeString(value) {
   return String(value).trim();
 }
 
-function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function safeReadText(response) {
@@ -1018,8 +891,6 @@ async function safeReadText(response) {
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: { 'Content-Type': 'application/json' }
   });
 }

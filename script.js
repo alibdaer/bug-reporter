@@ -1,121 +1,92 @@
 let conversation = [];
 let currentReport = null;
-let lastReportMessage = null;
-const THEME_STORAGE_KEY = 'bug-reporter-theme';
-
-const START_NEW_PATTERNS = [
-  /^new\s+conversation\s*$/i,
-  /^new\s+report\s*$/i,
-  /^start\s+new\s+report\s*$/i,
-  /^start\s+new\s+conversation\s*$/i,
-  /^ابدأ\s+تقرير\s+جديد\s*$/,
-  /^ابدأ\s+محادثة\s+جديدة\s*$/,
-  /^تقرير\s+جديد\s*$/,
-  /^محادثة\s+جديدة\s*$/
-];
 
 document.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  setTheme(savedTheme);
+
   const input = document.getElementById('user-input');
   const sendBtn = document.getElementById('send-btn');
+  const themeBtn = document.getElementById('theme-toggle');
   const newConversationTop = document.getElementById('new-conversation-top');
-  const themeToggle = document.getElementById('theme-toggle');
 
-  applyStoredTheme();
-
-  input.addEventListener('input', () => {
-    autoResize(input);
-    checkInput();
+  input?.addEventListener('input', () => {
+    autoResizeTextarea(input);
+    updateComposerState();
   });
 
-  input.addEventListener('keydown', (event) => {
+  input?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      if (!sendBtn.disabled) {
-        sendMessage();
-      }
+      if (!sendBtn.disabled) sendMessage();
     }
   });
 
-  sendBtn.addEventListener('click', sendMessage);
-  newConversationTop.addEventListener('click', newConversation);
-  themeToggle.addEventListener('click', toggleTheme);
+  sendBtn?.addEventListener('click', sendMessage);
+  themeBtn?.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+  });
+  newConversationTop?.addEventListener('click', resetConversation);
 
-  autoResize(input);
-  checkInput();
-  input.focus();
+  document.addEventListener('click', async (event) => {
+    if (event.target.closest('.copy-report-btn')) {
+      await copyCurrentReport();
+    }
+
+    if (event.target.closest('.new-conversation-btn')) {
+      resetConversation();
+    }
+  });
+
+  autoResizeTextarea(input);
+  updateComposerState();
 });
 
-function applyStoredTheme() {
-  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-  const shouldUseDark = savedTheme === 'dark';
-  document.documentElement.setAttribute('data-theme', shouldUseDark ? 'dark' : 'light');
-  updateThemeToggleLabel(shouldUseDark);
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  const icon = document.querySelector('.theme-icon');
+  if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
 }
 
-function toggleTheme() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const nextIsDark = !isDark;
-  document.documentElement.setAttribute('data-theme', nextIsDark ? 'dark' : 'light');
-  localStorage.setItem(THEME_STORAGE_KEY, nextIsDark ? 'dark' : 'light');
-  updateThemeToggleLabel(nextIsDark);
-}
-
-function updateThemeToggleLabel(isDark) {
-  const themeToggle = document.getElementById('theme-toggle');
-  if (!themeToggle) return;
-  const icon = themeToggle.querySelector('.theme-icon');
-  const label = themeToggle.querySelector('.theme-label');
-  if (icon) icon.textContent = isDark ? '☀️' : '🌙';
-  if (label) label.textContent = isDark ? 'Light mode' : 'Dark mode';
-}
-
-function autoResize(textarea) {
+function autoResizeTextarea(textarea) {
+  if (!textarea) return;
   textarea.style.height = 'auto';
-  textarea.style.height = `${Math.min(textarea.scrollHeight, 240)}px`;
+  textarea.style.height = Math.min(textarea.scrollHeight, 220) + 'px';
 }
 
-function checkInput() {
+function updateComposerState() {
   const input = document.getElementById('user-input');
   const sendBtn = document.getElementById('send-btn');
   const charCount = document.getElementById('char-count');
-  const length = input.value.length;
+  const length = input?.value.trim().length || 0;
 
-  charCount.textContent = `${length}/4000`;
-  sendBtn.disabled = input.value.trim().length === 0;
-}
-
-function isStartNewConversation(text) {
-  return START_NEW_PATTERNS.some((pattern) => pattern.test(text.trim()));
+  if (charCount) charCount.textContent = `${length}/2000`;
+  if (sendBtn) sendBtn.disabled = length === 0;
 }
 
 async function sendMessage() {
   const input = document.getElementById('user-input');
-  const text = input.value.trim();
+  const text = input?.value.trim() || '';
   if (!text) return;
 
-  if (isStartNewConversation(text)) {
-    newConversation();
-    return;
-  }
-
   addTextMessage(text, true);
-
   input.value = '';
-  autoResize(input);
-  checkInput();
+  autoResizeTextarea(input);
+  updateComposerState();
+  setLoading(true, 'Crafting report...');
 
-  showLoading(currentReport ? 'Updating report...' : 'Crafting report...');
+  const requestMessages = [...conversation, { role: 'user', content: text }];
 
   try {
-    const payload = {
-      messages: [...conversation, { role: 'user', content: text }],
-      currentReport
-    };
-
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        messages: requestMessages,
+        currentReport
+      })
     });
 
     if (!response.ok) {
@@ -124,386 +95,260 @@ async function sendMessage() {
 
     const data = await response.json();
 
-    conversation.push({ role: 'user', content: text });
+    conversation = requestMessages;
 
-    if (data.type === 'json' && data.content) {
+    if (data?.type === 'json' && data?.content) {
       currentReport = data.content;
-      const messageText = data.message || (conversation.length <= 1 ? 'Here is your bug report.' : 'I updated only the requested parts of the report.');
-      conversation.push({ role: 'assistant', content: JSON.stringify(currentReport) });
-      addReportMessage(currentReport, messageText);
+      addReportMessage(currentReport);
+      conversation.push({
+        role: 'assistant',
+        content: JSON.stringify(currentReport)
+      });
     } else {
-      const fallbackText = data.content || 'Please provide more details.';
-      conversation.push({ role: 'assistant', content: fallbackText });
+      const fallbackText = data?.content || 'Unable to generate the report.';
       addTextMessage(fallbackText, false);
+      conversation.push({ role: 'assistant', content: fallbackText });
     }
   } catch (error) {
     console.error(error);
-    addTextMessage('An error occurred while processing your request. Please try again.', false);
+    addTextMessage('Something went wrong while generating the report. Please try again.', false);
   } finally {
-    hideLoading();
+    setLoading(false);
   }
 }
 
 function addTextMessage(text, isUser) {
   const chat = document.getElementById('chat-container');
-  const wrapper = document.createElement('article');
+  if (!chat) return;
+
+  const wrapper = document.createElement('div');
   wrapper.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
 
-  if (!isUser) {
-    const avatar = document.createElement('div');
-    avatar.className = 'message-avatar';
-    avatar.textContent = 'AI';
-    wrapper.appendChild(avatar);
-  }
+  const card = document.createElement('div');
+  card.className = 'message-card';
+  card.textContent = text;
 
-  const body = document.createElement('div');
-  body.className = 'message-body';
-
-  const textBlock = document.createElement('div');
-  textBlock.className = 'plain-text';
-  textBlock.textContent = text;
-
-  if (isUser) {
-    body.appendChild(textBlock);
-  } else {
-    const card = document.createElement('div');
-    card.className = 'intro-card';
-    card.appendChild(textBlock);
-    body.appendChild(card);
-  }
-
-  wrapper.appendChild(body);
+  wrapper.appendChild(card);
   chat.appendChild(wrapper);
-  scrollToBottom();
+  scrollChatToBottom();
 }
 
-function addReportMessage(report, messageText) {
+function addReportMessage(report) {
   const chat = document.getElementById('chat-container');
-  const wrapper = document.createElement('article');
+  const template = document.getElementById('report-actions-template');
+  if (!chat || !report) return;
+
+  const wrapper = document.createElement('div');
   wrapper.className = 'message assistant-message';
 
-  const avatar = document.createElement('div');
-  avatar.className = 'message-avatar';
-  avatar.textContent = 'AI';
-  wrapper.appendChild(avatar);
-
-  const body = document.createElement('div');
-  body.className = 'message-body';
-
   const card = document.createElement('div');
-  card.className = 'report-card';
+  card.className = 'message-card report-card';
+  card.innerHTML = buildReportHtml(report);
 
-  const toolbar = document.createElement('div');
-  toolbar.className = 'report-toolbar';
+  if (template?.content) {
+    card.appendChild(template.content.cloneNode(true));
+  }
 
-  const title = document.createElement('div');
-  title.className = 'report-toolbar-title';
-  title.textContent = messageText || 'Bug report';
-
-  const actions = document.createElement('div');
-  actions.className = 'report-toolbar-actions';
-
-  const copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.className = 'toolbar-btn';
-  copyBtn.textContent = 'Copy report';
-  copyBtn.addEventListener('click', async () => {
-    try {
-      await copyReportToClipboard(report);
-      const original = copyBtn.textContent;
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => {
-        copyBtn.textContent = original;
-      }, 1800);
-    } catch (error) {
-      console.error(error);
-      copyBtn.textContent = 'Copy failed';
-      setTimeout(() => {
-        copyBtn.textContent = 'Copy report';
-      }, 1800);
-    }
-  });
-
-  const newBtn = document.createElement('button');
-  newBtn.type = 'button';
-  newBtn.className = 'toolbar-btn';
-  newBtn.textContent = 'New conversation';
-  newBtn.addEventListener('click', newConversation);
-
-  actions.append(copyBtn, newBtn);
-  toolbar.append(title, actions);
-
-  const content = renderReport(report);
-  card.append(toolbar, content);
-  body.appendChild(card);
-  wrapper.appendChild(body);
-
+  wrapper.appendChild(card);
   chat.appendChild(wrapper);
-  lastReportMessage = wrapper;
-  scrollToBottom();
+  scrollChatToBottom();
 }
 
-function renderReport(report) {
-  const container = document.createElement('div');
-  container.className = 'report-content';
-
-  const title = document.createElement('h2');
-  title.className = 'report-title';
-  title.textContent = safeValue(report.Title, 'Bug Report');
-  container.appendChild(title);
-
-  container.appendChild(createSection('Description', createParagraph(report.Description)));
-  container.appendChild(createSection('Steps to Reproduce', createOrderedList(report.Steps_to_Reproduce)));
-  container.appendChild(createSection('Expected Result', createParagraph(report.Expected_Result)));
-  container.appendChild(createSection('Actual Result', createParagraph(report.Actual_Result)));
-  container.appendChild(createSection('Severity/Priority', createMetaList(report)));
-  container.appendChild(createSection('Impact', createParagraph(report.Impact)));
-  container.appendChild(createSection('Environment', createParagraph(report.Environment)));
-  container.appendChild(createSection('Version', createParagraph(report.Version)));
-  container.appendChild(createSection('Attachments', createAttachments(report.Attachments)));
-
-  return container;
-}
-
-function createSection(label, contentNode) {
-  const section = document.createElement('section');
-  section.className = 'report-section';
-
-  const heading = document.createElement('h3');
-  heading.className = 'report-label';
-  heading.textContent = `${label}:`;
-
-  section.append(heading, contentNode);
-  return section;
-}
-
-function createParagraph(value) {
-  const p = document.createElement('p');
-  p.className = 'report-value';
-  const text = safeValue(value, 'Not specified');
-  if (text === 'Not specified') {
-    p.classList.add('report-empty');
-  }
-  p.textContent = text;
-  return p;
-}
-
-function createOrderedList(steps) {
-  const list = document.createElement('ol');
-  list.className = 'report-list';
-  const normalized = Array.isArray(steps) ? steps : [];
-
-  if (!normalized.length) {
-    const li = document.createElement('li');
-    li.className = 'report-empty';
-    li.textContent = 'Not specified';
-    list.appendChild(li);
-    return list;
-  }
-
-  normalized.forEach((step) => {
-    const li = document.createElement('li');
-    li.textContent = typeof step === 'string' ? step : JSON.stringify(step);
-    list.appendChild(li);
-  });
-
-  return list;
-}
-
-function createMetaList(report) {
-  const list = document.createElement('ul');
-  list.className = 'report-meta-list';
-
-  const entries = [
-    { label: 'Severity', value: safeValue(report.Severity, 'Medium') },
-    { label: 'Priority', value: safeValue(report.Priority, 'Medium') }
-  ];
-
-  entries.forEach((entry) => {
-    const li = document.createElement('li');
-    li.innerHTML = `<strong>${escapeHtml(entry.label)}:</strong> ${escapeHtml(entry.value)}`;
-    list.appendChild(li);
-  });
-
-  return list;
-}
-
-function createAttachments(value) {
-  if (Array.isArray(value)) {
-    const list = document.createElement('ul');
-    list.className = 'report-meta-list';
-    if (!value.length) {
-      const li = document.createElement('li');
-      li.className = 'report-empty';
-      li.textContent = 'Not specified';
-      list.appendChild(li);
-      return list;
-    }
-    value.forEach((item) => {
-      const li = document.createElement('li');
-      li.textContent = item;
-      list.appendChild(li);
-    });
-    return list;
-  }
-  return createParagraph(value);
-}
-
-function safeValue(value, fallback) {
-  const text = typeof value === 'string' ? value.trim() : String(value || '').trim();
-  return text || fallback;
-}
-
-function formatReport(report) {
+function buildReportHtml(report) {
+  const escape = escapeHtml;
   const lines = [];
-  lines.push(`${safeValue(report.Title, 'Bug Report')}`);
-  lines.push('');
-  lines.push('Description:');
-  lines.push(safeValue(report.Description, 'Not specified'));
-  lines.push('');
-  lines.push('Steps to Reproduce:');
 
-  const steps = Array.isArray(report.Steps_to_Reproduce) ? report.Steps_to_Reproduce : [];
-  if (steps.length) {
-    steps.forEach((step, index) => lines.push(`${index + 1}. ${step}`));
-  } else {
-    lines.push('1. Not specified');
-  }
+  lines.push(`<h2 class="report-title">${escape(report.Title || 'Untitled Bug Report')}</h2>`);
+  lines.push(renderSection('Description', report.Description));
+  lines.push(renderStepsSection(report.Steps_to_Reproduce));
+  lines.push(renderSection('Expected Result', report.Expected_Result));
+  lines.push(renderSection('Actual Result', report.Actual_Result));
 
-  lines.push('');
-  lines.push('Expected Result:');
-  lines.push(safeValue(report.Expected_Result, 'Not specified'));
-  lines.push('');
-  lines.push('Actual Result:');
-  lines.push(safeValue(report.Actual_Result, 'Not specified'));
-  lines.push('');
-  lines.push('Severity/Priority:');
-  lines.push(`• Severity: ${safeValue(report.Severity, 'Medium')}`);
-  lines.push(`• Priority: ${safeValue(report.Priority, 'Medium')}`);
-  lines.push('');
-  lines.push('Impact:');
-  lines.push(safeValue(report.Impact, 'Not specified'));
-  lines.push('');
-  lines.push('Environment:');
-  lines.push(safeValue(report.Environment, 'Not specified'));
-  lines.push('');
-  lines.push('Version:');
-  lines.push(safeValue(report.Version, 'Not specified'));
-  lines.push('');
-  lines.push('Attachments:');
-  lines.push(Array.isArray(report.Attachments)
-    ? (report.Attachments.length ? report.Attachments.map((item) => `• ${item}`).join('\n') : 'Not specified')
-    : safeValue(report.Attachments, 'Not specified'));
-  return lines.join('\n');
-}
-
-function generateReportHtml(report) {
-  const attachments = Array.isArray(report.Attachments)
-    ? report.Attachments
-    : (safeValue(report.Attachments, '') ? [safeValue(report.Attachments, '')] : []);
-  const steps = Array.isArray(report.Steps_to_Reproduce) ? report.Steps_to_Reproduce : [];
-
-  return `
-    <div style="font-family: Inter, Arial, sans-serif; color: #111827; line-height: 1.7; font-size: 15px;">
-      <h2 style="margin: 0 0 20px; font-size: 28px; font-weight: 700;">${escapeHtml(safeValue(report.Title, 'Bug Report'))}</h2>
-      ${richSectionHtml('Description', `<p style="margin: 0;">${escapeHtml(safeValue(report.Description, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Steps to Reproduce', orderedListHtml(steps))}
-      ${richSectionHtml('Expected Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Expected_Result, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Actual Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Actual_Result, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Severity/Priority', `
-        <ul style="margin: 0; padding-left: 24px;">
-          <li><strong>Severity:</strong> ${escapeHtml(safeValue(report.Severity, 'Medium'))}</li>
-          <li><strong>Priority:</strong> ${escapeHtml(safeValue(report.Priority, 'Medium'))}</li>
-        </ul>
-      `)}
-      ${richSectionHtml('Impact', `<p style="margin: 0;">${escapeHtml(safeValue(report.Impact, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Environment', `<p style="margin: 0;">${escapeHtml(safeValue(report.Environment, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Version', `<p style="margin: 0;">${escapeHtml(safeValue(report.Version, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Attachments', attachments.length ? unorderedListHtml(attachments) : `<p style="margin: 0; color: #6b7280;">Not specified</p>`)}
+  lines.push(`
+    <div class="report-meta-grid">
+      ${renderSection('Severity', report.Severity, false)}
+      ${renderSection('Priority', report.Priority, false)}
+      ${renderSection('Environment', report.Environment, false)}
+      ${renderSection('Version', report.Version, false)}
     </div>
-  `.trim();
+  `);
+
+  lines.push(renderSection('Impact', report.Impact));
+  lines.push(renderSection('Attachments', report.Attachments));
+
+  return lines.join('');
 }
 
-function richSectionHtml(label, contentHtml) {
+function renderSection(label, value, wrap = true) {
+  const content = formatFieldValue(value);
+  const html = `
+    <section class="report-section">
+      <span class="report-label">${escapeHtml(label)}</span>
+      <div class="report-text">${content || 'Not specified'}</div>
+    </section>
+  `;
+  return wrap ? html : html;
+}
+
+function renderStepsSection(steps) {
+  const list = Array.isArray(steps) ? steps : [];
+  const items = list
+    .map((step) => `<li>${escapeHtml(typeof step === 'string' ? step : JSON.stringify(step))}</li>`)
+    .join('');
+
   return `
-    <section style="margin: 0 0 18px;">
-      <h3 style="margin: 0 0 8px; font-size: 17px; font-weight: 700;">${escapeHtml(label)}:</h3>
-      ${contentHtml}
+    <section class="report-section">
+      <span class="report-label">Steps to Reproduce</span>
+      ${items ? `<ol class="report-list">${items}</ol>` : `<div class="report-text">Not specified</div>`}
     </section>
   `;
 }
 
-function orderedListHtml(items) {
-  if (!items.length) {
-    return `<ol style="margin: 0; padding-left: 24px;"><li style="color: #6b7280;">Not specified</li></ol>`;
-  }
-  return `<ol style="margin: 0; padding-left: 24px;">${items.map((item) => `<li style="margin-bottom: 8px;">${escapeHtml(item)}</li>`).join('')}</ol>`;
-}
-
-function unorderedListHtml(items) {
-  return `<ul style="margin: 0; padding-left: 24px;">${items.map((item) => `<li style="margin-bottom: 8px;">${escapeHtml(item)}</li>`).join('')}</ul>`;
-}
-
-async function copyReportToClipboard(report) {
-  const plainText = formatReport(report);
-  const richHtml = generateReportHtml(report);
-
-  if (navigator.clipboard && window.ClipboardItem) {
-    const item = new ClipboardItem({
-      'text/plain': new Blob([plainText], { type: 'text/plain' }),
-      'text/html': new Blob([richHtml], { type: 'text/html' })
-    });
-    await navigator.clipboard.write([item]);
-    return;
+function formatFieldValue(value) {
+  if (Array.isArray(value)) {
+    return value.length ? escapeHtml(value.join('\n')) : '';
   }
 
-  await navigator.clipboard.writeText(plainText);
+  const text = String(value || '').trim();
+  return text ? escapeHtml(text) : '';
 }
 
-function newConversation() {
+async function copyCurrentReport() {
+  if (!currentReport) return;
+
+  const html = buildCopyableReportHtml(currentReport);
+  const plainText = formatReportAsText(currentReport);
+
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plainText], { type: 'text/plain' })
+        })
+      ]);
+    } else {
+      await navigator.clipboard.writeText(plainText);
+    }
+
+    flashCopyButtons();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function buildCopyableReportHtml(report) {
+  const steps = (report.Steps_to_Reproduce || [])
+    .map((step) => `<li>${escapeHtml(step)}</li>`)
+    .join('');
+
+  return `
+    <div>
+      <h2>${escapeHtml(report.Title || 'Untitled Bug Report')}</h2>
+      <p><strong>Description:</strong><br>${escapeHtml(report.Description || 'Not specified').replace(/\n/g, '<br>')}</p>
+      <p><strong>Steps to Reproduce:</strong></p>
+      ${steps ? `<ol>${steps}</ol>` : '<p>Not specified</p>'}
+      <p><strong>Expected Result:</strong><br>${escapeHtml(report.Expected_Result || 'Not specified').replace(/\n/g, '<br>')}</p>
+      <p><strong>Actual Result:</strong><br>${escapeHtml(report.Actual_Result || 'Not specified').replace(/\n/g, '<br>')}</p>
+      <p><strong>Severity:</strong> ${escapeHtml(report.Severity || 'Not specified')}</p>
+      <p><strong>Priority:</strong> ${escapeHtml(report.Priority || 'Not specified')}</p>
+      <p><strong>Environment:</strong><br>${escapeHtml(report.Environment || 'Not specified').replace(/\n/g, '<br>')}</p>
+      <p><strong>Version:</strong><br>${escapeHtml(report.Version || 'Not specified').replace(/\n/g, '<br>')}</p>
+      <p><strong>Impact:</strong><br>${escapeHtml(report.Impact || 'Not specified').replace(/\n/g, '<br>')}</p>
+      <p><strong>Attachments:</strong><br>${escapeHtml(report.Attachments || 'Not specified').replace(/\n/g, '<br>')}</p>
+    </div>
+  `;
+}
+
+function flashCopyButtons() {
+  document.querySelectorAll('.copy-report-btn').forEach((button) => {
+    const original = button.textContent;
+    button.textContent = 'Copied!';
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1800);
+  });
+}
+
+function formatReportAsText(report) {
+  const steps = Array.isArray(report.Steps_to_Reproduce)
+    ? report.Steps_to_Reproduce.map((step, index) => `${index + 1}. ${step}`).join('\n')
+    : 'Not specified';
+
+  return [
+    report.Title || 'Untitled Bug Report',
+    '',
+    'Description:',
+    report.Description || 'Not specified',
+    '',
+    'Steps to Reproduce:',
+    steps,
+    '',
+    'Expected Result:',
+    report.Expected_Result || 'Not specified',
+    '',
+    'Actual Result:',
+    report.Actual_Result || 'Not specified',
+    '',
+    `Severity: ${report.Severity || 'Not specified'}`,
+    `Priority: ${report.Priority || 'Not specified'}`,
+    '',
+    'Environment:',
+    report.Environment || 'Not specified',
+    '',
+    'Version:',
+    report.Version || 'Not specified',
+    '',
+    'Impact:',
+    report.Impact || 'Not specified',
+    '',
+    'Attachments:',
+    report.Attachments || 'Not specified'
+  ].join('\n');
+}
+
+function resetConversation() {
   conversation = [];
   currentReport = null;
-  lastReportMessage = null;
-
   const chat = document.getElementById('chat-container');
-  chat.innerHTML = `
-    <article class="message assistant-message intro-message">
-      <div class="message-avatar">AI</div>
-      <div class="message-body intro-card">
-        <p class="intro-title">Welcome back!</p>
-        <p>Start a new bug report whenever you are ready.</p>
+  if (chat) {
+    chat.innerHTML = `
+      <div class="message assistant-message intro-message">
+        <div class="message-card">
+          <p class="intro-title">Welcome back!</p>
+          <p>I generate and revise Menaitech bug reports in English.</p>
+          <p class="intro-hint">First message = new report. Any next message = update the same report unless you start a new conversation.</p>
+        </div>
       </div>
-    </article>
-  `;
+    `;
+  }
 
   const input = document.getElementById('user-input');
-  input.value = '';
-  autoResize(input);
-  checkInput();
-  input.focus();
-  scrollToBottom();
+  if (input) {
+    input.value = '';
+    autoResizeTextarea(input);
+    input.focus();
+  }
+
+  updateComposerState();
 }
 
-function showLoading(text) {
-  const overlay = document.getElementById('loading-overlay');
+function setLoading(show, text = 'Crafting report...') {
+  const indicator = document.getElementById('loading-indicator');
   const label = document.getElementById('loading-text');
-  label.textContent = text;
-  overlay.classList.remove('hidden');
+  if (label) label.textContent = text;
+  if (indicator) indicator.classList.toggle('hidden', !show);
 }
 
-function hideLoading() {
-  document.getElementById('loading-overlay').classList.add('hidden');
-}
-
-function scrollToBottom() {
+function scrollChatToBottom() {
   window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
