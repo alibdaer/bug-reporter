@@ -105,7 +105,8 @@ Understand issues related to:
 - Requests & approvals
 - Workflow
 - Login / credentials
-- MenaME / Mobile
+- MenaME Mobile
+- MenaME Web
 
 Also handle technical issues:
 - validation
@@ -113,6 +114,25 @@ Also handle technical issues:
 - permissions
 - data mismatch
 - system errors
+
+--------------------------------------------------
+[MENATECH NAVIGATION RULES - VERY IMPORTANT]
+When writing Steps to Reproduce, use Menaitech-specific navigation behavior and NEVER invent generic modules or screens.
+
+Tab opening rules:
+- If the issue is related to payroll, salary calculation, salary slip, financial transactions, allowances, deductions, overtime, social security, insurance, net salary, or any employee financial matter → the first step should usually be: "Open the MenaPAY tab."
+- If the issue is related to employee appraisal, performance evaluation, career path, certificates, vacancy, recruitment-related employee evaluation flows, or similar HR evaluation processes → the first step should usually be: "Open the MenaHR tab."
+- If the issue is related to the mobile app version → the first step should usually be: "Open MenaME application."
+- If the issue is related to MenaME web → the first step should usually be: "Open the MenaME Web."
+
+STRICT RULES:
+- Do NOT write generic steps like "Log in to the HRMS system as an administrator" unless the user explicitly mentioned login/authentication as part of the issue.
+- Do NOT add "as an administrator" unless the user explicitly mentioned that role.
+- Do NOT invent module names such as "Employee Management module" unless the user explicitly provided that exact screen/module name.
+- Do NOT invent screen names, buttons, or paths that are not explicitly mentioned or strongly implied by the scenario.
+- If employee code is provided, use it only as test data or credential context when relevant, but do NOT invent where it was entered unless the screen is clearly known from the user input.
+- If the user gives credentials or slash-formatted data such as employee code / password / version, infer them carefully as test data when strongly implied, but do NOT force the exact format in the report.
+- Different user formats may represent employee code, password, version, or environment. Interpret them contextually and conservatively.
 
 --------------------------------------------------
 [TERMINOLOGY]
@@ -140,11 +160,41 @@ Steps must:
 If values are given (salary, allowance, overtime, leave) → include them.
 
 --------------------------------------------------
+[STEPS PRECISION RULES - STRICT]
+Steps to Reproduce must reflect the actual business flow only.
+
+- Do NOT invent fake screens, fake modules, or fake buttons.
+- Do NOT write "Navigate to the Employee Management module" unless the user explicitly mentioned that exact module.
+- Do NOT write "Click on the 'Salary Calculation' button" unless the user explicitly mentioned such a button exists.
+- For salary calculation scenarios, prefer natural business wording such as:
+  - "Open the MenaPAY tab."
+  - "Go to Salary Calculation."
+  - "Calculate salary for month X."
+- If a month is mentioned, include it exactly.
+- If an employee code is provided, include it only where logically relevant, without inventing unsupported screen names.
+- Use the minimum number of realistic steps needed to reproduce the issue.
+- Avoid over-explaining obvious actions.
+- Avoid technical assumptions not explicitly supported by the user input.
+
+--------------------------------------------------
 [DATA RULE]
 - Include only data provided by the user.
 - Do NOT invent employee info.
 - Do NOT force Employee Name or Code.
 - If scenario includes creating employee → include given setup details only.
+
+--------------------------------------------------
+[TEST DATA INTERPRETATION RULES]
+Users may provide compact internal QA test data in multiple formats.
+Examples may include employee code, password, environment, patch version, or other internal reference values.
+
+Rules:
+- Interpret compact QA data conservatively and contextually.
+- Do NOT assume one rigid format.
+- If the meaning is reasonably clear from context, use the values appropriately in the report.
+- If the values appear to represent employee code / password / version / environment, incorporate them only where relevant.
+- Do NOT expose unnecessary credentials in the bug report unless they are needed for reproduction.
+- Prefer using such values in Preconditions, Environment, Version, or Steps only when clearly relevant.
 
 --------------------------------------------------
 [ENVIRONMENT]
@@ -173,13 +223,24 @@ Mention if clear:
 
 --------------------------------------------------
 [SEVERITY / PRIORITY]
-General → based on impact
-If Salary Calculation / Salary Slip:
-- Severity: High
-- Priority: High
-If financial issue (wrong salary / missing / extra):
-- Severity: Critical
-- Priority: High
+Allowed Severity values:
+- Critical
+- High
+- Medium
+- Low
+
+Allowed Priority values:
+- Urgent
+- High
+- Medium
+- Low
+
+General rules:
+- Assign based on business impact and urgency.
+- If the issue involves Salary Calculation or Salary Slip → Severity: High, Priority: High
+- If the issue causes financial discrepancy (wrong salary, extra amount, missing amount, incorrect net salary) → Severity: Critical, Priority: Urgent
+- Do NOT change Severity unless the user explicitly asks to change Severity during a revision.
+- Do NOT change Priority unless the user explicitly asks to change Priority during a revision.
 
 --------------------------------------------------
 [REVISION RULES - VERY IMPORTANT]
@@ -200,6 +261,11 @@ If the user asks to modify, refine, shorten, rewrite, add, remove, or correct a 
 - Do NOT remove details unless the user explicitly asks to shorten, simplify, or remove them.
 - If the user asks to add something, add it only in the relevant field(s), without rewriting unrelated fields.
 - If the user asks to fix grammar in one section, fix grammar in that section only.
+
+Additional strict revision behavior:
+- If the user requests a change in any specific field, update that field only.
+- The rest of the report must remain exactly unchanged, including wording, order, and content.
+- This rule applies to ALL fields, not only Severity or Priority.
 
 --------------------------------------------------
 [OUTPUT - STRICT JSON]
@@ -362,13 +428,16 @@ Now update the SAME report according to the user's latest request.
 STRICT UPDATE RULES:
 - The current report is the base version.
 - Apply minimal changes only.
-- Update ONLY the field or section explicitly requested by the user.
+- Update ONLY the explicitly requested field or section.
 - Keep every other field EXACTLY unchanged.
 - Do NOT regenerate the report from scratch.
 - Do NOT rewrite unrelated fields.
 - Do NOT improve unrelated wording.
-- Do NOT change formatting structure.
-- If the user asks to update one field only, all other fields must remain exactly as they are.
+- Do NOT adjust Severity unless explicitly requested.
+- Do NOT adjust Priority unless explicitly requested.
+- Do NOT modify Steps unless explicitly requested.
+- Do NOT modify Title, Description, Expected Result, Actual Result, Environment, Version, Impact, or Attachments unless explicitly requested.
+- Preserve wording and structure of all untouched fields exactly as-is.
 - Return the full updated bug report in the exact JSON structure only.
 
 Current report JSON:
@@ -469,9 +538,9 @@ function applyExplicitFieldOverrides(report, latestUserRequest) {
 
   const priorityMatch =
     request.match(
-      /(?:change|update|set|make|adjust)\s+(?:the\s+)?priority\s+(?:to|as)?\s*(high|medium|low)/i
+      /(?:change|update|set|make|adjust)\s+(?:the\s+)?priority\s+(?:to|as)?\s*(urgent|high|medium|low)/i
     ) ||
-    request.match(/priority\s*(?:to|as|=|becomes?)\s*(high|medium|low)/i);
+    request.match(/priority\s*(?:to|as|=|becomes?)\s*(urgent|high|medium|low)/i);
 
   if (severityMatch?.[1]) {
     updated.Severity = normalizeSeverity(severityMatch[1]);
@@ -637,6 +706,7 @@ function normalizeSeverity(value) {
 
 function normalizePriority(value) {
   const normalized = safeString(value).toLowerCase();
+  if (normalized === 'urgent') return 'Urgent';
   if (normalized === 'high') return 'High';
   if (normalized === 'medium') return 'Medium';
   if (normalized === 'low') return 'Low';
