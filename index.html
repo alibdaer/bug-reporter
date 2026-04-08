@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menaitech Bug Reporter AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Menaitech QA Assistant</p>
+        <h1>Bug Reporter AI</h1>
+      </div>
+      <button id="new-conversation-top" class="secondary-btn" type="button">New conversation</button>
+    </header>
+
+    <main class="chat-layout">
+      <section id="chat-container" class="chat-container" aria-live="polite">
+        <article class="message assistant-message intro-message">
+          <div class="message-avatar">AI</div>
+          <div class="message-body intro-card">
+            <p class="intro-title">Welcome!</p>
+            <p>
+              Describe the issue in a simple way, and I will generate a professional bug report.
+              After that, you can keep chatting with me to revise the same report.
+            </p>
+            <p class="intro-example">
+              Example: In Employee Exit Process, Termination Salary accepts letters in monetary fields and saves successfully.
+            </p>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="composer-shell">
+      <div class="composer-box">
+        <textarea
+          id="user-input"
+          rows="1"
+          maxlength="4000"
+          placeholder="Describe the bug or request a change to the current report..."
+        ></textarea>
+        <div class="composer-actions">
+          <span id="char-count">0/4000</span>
+          <button id="send-btn" type="button" class="primary-btn" disabled>Send</button>
+        </div>
+      </div>
+      <p class="composer-hint">Enter to send • Shift+Enter for new line</p>
+    </footer>
+  </div>
+
+  <div id="loading-overlay" class="loading-overlay hidden" aria-hidden="true">
+    <div class="loading-card">
+      <div class="loader"></div>
+      <p id="loading-text">Crafting report...</p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
