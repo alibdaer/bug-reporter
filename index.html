@@ -1,26 +1,25 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Menaitech Bug Reporter AI</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <div class="eyebrow">Menaitech Bug Reporter AI</div>
-        <h1>Professional QA bug report assistant</h1>
-        <p class="subtitle">Describe the issue, then keep refining the same report in the conversation.</p>
+        <p class="eyebrow">Menaitech QA Assistant</p>
+        <h1>Bug Reporter AI</h1>
       </div>
-
       <div class="topbar-actions">
-        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
-          <span class="theme-icon">🌙</span>
+        <button id="theme-toggle" class="secondary-btn icon-btn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <span class="theme-icon" aria-hidden="true">🌙</span>
+          <span class="theme-label">Dark mode</span>
         </button>
         <button id="new-conversation-top" class="secondary-btn" type="button">New conversation</button>
       </div>
@@ -28,44 +27,53 @@
 
     <main class="chat-layout">
       <section id="chat-container" class="chat-container" aria-live="polite">
-        <div class="message assistant-message intro-message">
-          <div class="message-card">
-            <p class="intro-title">Welcome back!</p>
-            <p>I generate and revise Menaitech bug reports in English.</p>
-            <p class="intro-hint">First message = new report. Any next message = update the same report unless you start a new conversation.</p>
+        <article class="message assistant-message intro-message">
+          <div class="message-avatar">AI</div>
+          <div class="message-body intro-card">
+            <p class="intro-title">Welcome!</p>
+            <p>
+              Describe the issue in a simple way, and I will generate a professional bug report.
+              After that, you can keep chatting with me to revise the same report.
+            </p>
+            <p class="intro-example">
+              Example: In Employee Exit Process, Termination Salary accepts letters in monetary fields and saves successfully.
+            </p>
           </div>
-        </div>
-      </section>
-
-      <div id="loading-indicator" class="loading-indicator hidden">
-        <div class="loading-dot"></div>
-        <span id="loading-text">Crafting report...</span>
-      </div>
-
-      <section class="composer-panel">
-        <div class="composer-toolbar">
-          <span class="composer-tip">Press Enter to send • Shift+Enter for new line</span>
-          <span id="char-count" class="char-count">0/2000</span>
-        </div>
-        <div class="composer">
-          <textarea id="user-input" rows="1" maxlength="2000" placeholder="Describe the bug or ask to revise the current report..."></textarea>
-          <button id="send-btn" class="send-btn" type="button" disabled>Send</button>
-        </div>
+        </article>
       </section>
     </main>
 
-    <footer class="footer">
-      Developed with ❤️ by <a href="https://www.linkedin.com/in/alibdaer" target="_blank" rel="noopener">Ali Bdaer</a>
+    <footer class="composer-shell">
+      <div class="composer-box">
+        <textarea
+          id="user-input"
+          rows="1"
+          maxlength="4000"
+          placeholder="Describe the bug or request a change to the current report..."
+        ></textarea>
+        <div class="composer-actions">
+          <span id="char-count">0/4000</span>
+          <button id="send-btn" type="button" class="primary-btn" disabled>Send</button>
+        </div>
+      </div>
+      <p class="composer-hint">Enter to send • Shift+Enter for new line</p>
+    </footer>
+
+    <footer class="site-footer">
+      <p>
+        Developed with ❤️ by
+        <a href="https://www.linkedin.com/in/alibdaer" target="_blank" rel="noopener">Ali Bdaer</a>
+      </p>
     </footer>
   </div>
 
-  <template id="report-actions-template">
-    <div class="report-actions">
-      <button class="secondary-btn copy-report-btn" type="button">Copy report</button>
-      <button class="secondary-btn new-conversation-btn" type="button">New conversation</button>
+  <div id="loading-overlay" class="loading-overlay hidden" aria-hidden="true">
+    <div class="loading-card">
+      <div class="loader"></div>
+      <p id="loading-text">Crafting report...</p>
     </div>
-  </template>
+  </div>
 
-  <script src="/script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
