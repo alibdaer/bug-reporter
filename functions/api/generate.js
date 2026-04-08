@@ -56,13 +56,28 @@ Attachments
 - Output MUST be in English only.
 
 --------------------------------------------------
-[WRITING STYLE]
+[WRITING STYLE - DETAILED OUTPUT]
 
 - Write detailed, clear, and professional content.
-- No short or vague answers.
+- Avoid short or minimal responses.
+- Each section must contain enough explanation to fully describe the issue.
 - Use complete sentences.
-- Be informative without repetition.
+- Do NOT reduce important details.
+- Avoid repetition, but never at the cost of clarity.
 
+--------------------------------------------------
+[DESCRIPTION RULE - ENFORCED]
+
+The Description must:
+- clearly explain where the issue occurred (module, screen, or system if provided)
+- describe what the user was trying to do
+- explain the business process involved
+- include relevant conditions before the issue
+- describe what went wrong
+- explain why the issue is important
+
+The Description must NOT be short or generic.
+It should be written in multiple meaningful sentences (at least 3–5 when possible).
 --------------------------------------------------
 [DETAIL RULE]
 
