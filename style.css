@@ -10,6 +10,21 @@
   --user-text: #ffffff;
   --shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
   --radius: 20px;
+  --overlay: rgba(17, 24, 39, 0.24);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1120;
+  --surface: #101827;
+  --surface-soft: #172033;
+  --border: #293347;
+  --text: #e5e7eb;
+  --muted: #9aa4b2;
+  --user-bubble: #2563eb;
+  --user-text: #f8fafc;
+  --shadow: 0 18px 50px rgba(2, 6, 23, 0.45);
+  --overlay: rgba(2, 6, 23, 0.6);
 }
 
 * {
@@ -27,10 +42,15 @@ html, body {
 body {
   display: flex;
   justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 button, textarea {
   font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app-shell {
@@ -47,6 +67,12 @@ button, textarea {
   align-items: center;
   gap: 16px;
   padding: 8px 0 18px;
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .eyebrow {
@@ -95,8 +121,8 @@ button, textarea {
 }
 
 .assistant-message .message-avatar {
-  background: #111827;
-  color: #fff;
+  background: var(--text);
+  color: var(--surface);
 }
 
 .user-message {
@@ -192,20 +218,26 @@ button, textarea {
 .primary-btn,
 .secondary-btn {
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   border-radius: 12px;
   padding: 10px 14px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .toolbar-btn:hover,
 .primary-btn:hover,
 .secondary-btn:hover {
-  background: #f3f4f6;
+  background: var(--surface-soft);
 }
 
 .toolbar-btn:active,
@@ -215,13 +247,13 @@ button, textarea {
 }
 
 .primary-btn {
-  background: #111827;
-  border-color: #111827;
-  color: #fff;
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
 }
 
 .primary-btn:hover {
-  background: #0b1220;
+  filter: brightness(1.05);
 }
 
 .primary-btn:disabled {
@@ -277,7 +309,7 @@ button, textarea {
   position: sticky;
   bottom: 0;
   padding-top: 12px;
-  background: linear-gradient(to top, var(--bg) 76%, rgba(245, 247, 251, 0));
+  background: linear-gradient(to top, var(--bg) 76%, transparent);
 }
 
 .composer-box {
@@ -300,6 +332,10 @@ button, textarea {
   line-height: 1.7;
 }
 
+#user-input::placeholder {
+  color: var(--muted);
+}
+
 .composer-actions {
   display: flex;
   justify-content: space-between;
@@ -318,10 +354,32 @@ button, textarea {
   margin: 8px 6px 0;
 }
 
+.site-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 18px;
+}
+
+.site-footer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.site-footer a {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
 .loading-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.24);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -334,6 +392,7 @@ button, textarea {
 
 .loading-card {
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 22px 28px;
   box-shadow: var(--shadow);
@@ -345,8 +404,8 @@ button, textarea {
 .loader {
   width: 22px;
   height: 22px;
-  border: 3px solid #d1d5db;
-  border-top-color: #111827;
+  border: 3px solid color-mix(in srgb, var(--muted) 30%, transparent);
+  border-top-color: var(--text);
   border-radius: 50%;
   animation: spin 0.85s linear infinite;
 }
@@ -367,6 +426,11 @@ button, textarea {
     align-items: stretch;
   }
 
+  .topbar-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
   .report-content {
     padding: 20px;
   }
@@ -382,7 +446,8 @@ button, textarea {
 
   .toolbar-btn,
   .secondary-btn,
-  .primary-btn {
+  .primary-btn,
+  .icon-btn {
     width: 100%;
     justify-content: center;
   }

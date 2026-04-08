@@ -1,6 +1,7 @@
 let conversation = [];
 let currentReport = null;
 let lastReportMessage = null;
+const THEME_STORAGE_KEY = 'bug-reporter-theme';
 
 const START_NEW_PATTERNS = [
   /^new\s+conversation\s*$/i,
@@ -17,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('user-input');
   const sendBtn = document.getElementById('send-btn');
   const newConversationTop = document.getElementById('new-conversation-top');
+  const themeToggle = document.getElementById('theme-toggle');
+
+  applyStoredTheme();
 
   input.addEventListener('input', () => {
     autoResize(input);
@@ -34,11 +38,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
   sendBtn.addEventListener('click', sendMessage);
   newConversationTop.addEventListener('click', newConversation);
+  themeToggle.addEventListener('click', toggleTheme);
 
   autoResize(input);
   checkInput();
   input.focus();
 });
+
+function applyStoredTheme() {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  const shouldUseDark = savedTheme === 'dark';
+  document.documentElement.setAttribute('data-theme', shouldUseDark ? 'dark' : 'light');
+  updateThemeToggleLabel(shouldUseDark);
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const nextIsDark = !isDark;
+  document.documentElement.setAttribute('data-theme', nextIsDark ? 'dark' : 'light');
+  localStorage.setItem(THEME_STORAGE_KEY, nextIsDark ? 'dark' : 'light');
+  updateThemeToggleLabel(nextIsDark);
+}
+
+function updateThemeToggleLabel(isDark) {
+  const themeToggle = document.getElementById('theme-toggle');
+  if (!themeToggle) return;
+  const icon = themeToggle.querySelector('.theme-icon');
+  const label = themeToggle.querySelector('.theme-label');
+  if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+  if (label) label.textContent = isDark ? 'Light mode' : 'Dark mode';
+}
 
 function autoResize(textarea) {
   textarea.style.height = 'auto';
@@ -99,8 +128,8 @@ async function sendMessage() {
 
     if (data.type === 'json' && data.content) {
       currentReport = data.content;
-      const messageText = data.message || (conversation.length <= 1 ? 'Here is your bug report.' : 'I updated the report based on your request.');
-      conversation.push({ role: 'assistant', content: messageText });
+      const messageText = data.message || (conversation.length <= 1 ? 'Here is your bug report.' : 'I updated only the requested parts of the report.');
+      conversation.push({ role: 'assistant', content: JSON.stringify(currentReport) });
       addReportMessage(currentReport, messageText);
     } else {
       const fallbackText = data.content || 'Please provide more details.';
@@ -180,7 +209,7 @@ function addReportMessage(report, messageText) {
   copyBtn.textContent = 'Copy report';
   copyBtn.addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(formatReport(report));
+      await copyReportToClipboard(report);
       const original = copyBtn.textContent;
       copyBtn.textContent = 'Copied!';
       setTimeout(() => {
@@ -349,8 +378,8 @@ function formatReport(report) {
   lines.push(safeValue(report.Actual_Result, 'Not specified'));
   lines.push('');
   lines.push('Severity/Priority:');
-  lines.push(`- Severity: ${safeValue(report.Severity, 'Medium')}`);
-  lines.push(`- Priority: ${safeValue(report.Priority, 'Medium')}`);
+  lines.push(`• Severity: ${safeValue(report.Severity, 'Medium')}`);
+  lines.push(`• Priority: ${safeValue(report.Priority, 'Medium')}`);
   lines.push('');
   lines.push('Impact:');
   lines.push(safeValue(report.Impact, 'Not specified'));
@@ -363,9 +392,72 @@ function formatReport(report) {
   lines.push('');
   lines.push('Attachments:');
   lines.push(Array.isArray(report.Attachments)
-    ? (report.Attachments.length ? report.Attachments.map((item) => `- ${item}`).join('\n') : 'Not specified')
+    ? (report.Attachments.length ? report.Attachments.map((item) => `• ${item}`).join('\n') : 'Not specified')
     : safeValue(report.Attachments, 'Not specified'));
   return lines.join('\n');
+}
+
+function generateReportHtml(report) {
+  const attachments = Array.isArray(report.Attachments)
+    ? report.Attachments
+    : (safeValue(report.Attachments, '') ? [safeValue(report.Attachments, '')] : []);
+  const steps = Array.isArray(report.Steps_to_Reproduce) ? report.Steps_to_Reproduce : [];
+
+  return `
+    <div style="font-family: Inter, Arial, sans-serif; color: #111827; line-height: 1.7; font-size: 15px;">
+      <h2 style="margin: 0 0 20px; font-size: 28px; font-weight: 700;">${escapeHtml(safeValue(report.Title, 'Bug Report'))}</h2>
+      ${richSectionHtml('Description', `<p style="margin: 0;">${escapeHtml(safeValue(report.Description, 'Not specified'))}</p>`) }
+      ${richSectionHtml('Steps to Reproduce', orderedListHtml(steps))}
+      ${richSectionHtml('Expected Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Expected_Result, 'Not specified'))}</p>`) }
+      ${richSectionHtml('Actual Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Actual_Result, 'Not specified'))}</p>`) }
+      ${richSectionHtml('Severity/Priority', `
+        <ul style="margin: 0; padding-left: 24px;">
+          <li><strong>Severity:</strong> ${escapeHtml(safeValue(report.Severity, 'Medium'))}</li>
+          <li><strong>Priority:</strong> ${escapeHtml(safeValue(report.Priority, 'Medium'))}</li>
+        </ul>
+      `)}
+      ${richSectionHtml('Impact', `<p style="margin: 0;">${escapeHtml(safeValue(report.Impact, 'Not specified'))}</p>`) }
+      ${richSectionHtml('Environment', `<p style="margin: 0;">${escapeHtml(safeValue(report.Environment, 'Not specified'))}</p>`) }
+      ${richSectionHtml('Version', `<p style="margin: 0;">${escapeHtml(safeValue(report.Version, 'Not specified'))}</p>`) }
+      ${richSectionHtml('Attachments', attachments.length ? unorderedListHtml(attachments) : `<p style="margin: 0; color: #6b7280;">Not specified</p>`)}
+    </div>
+  `.trim();
+}
+
+function richSectionHtml(label, contentHtml) {
+  return `
+    <section style="margin: 0 0 18px;">
+      <h3 style="margin: 0 0 8px; font-size: 17px; font-weight: 700;">${escapeHtml(label)}:</h3>
+      ${contentHtml}
+    </section>
+  `;
+}
+
+function orderedListHtml(items) {
+  if (!items.length) {
+    return `<ol style="margin: 0; padding-left: 24px;"><li style="color: #6b7280;">Not specified</li></ol>`;
+  }
+  return `<ol style="margin: 0; padding-left: 24px;">${items.map((item) => `<li style="margin-bottom: 8px;">${escapeHtml(item)}</li>`).join('')}</ol>`;
+}
+
+function unorderedListHtml(items) {
+  return `<ul style="margin: 0; padding-left: 24px;">${items.map((item) => `<li style="margin-bottom: 8px;">${escapeHtml(item)}</li>`).join('')}</ul>`;
+}
+
+async function copyReportToClipboard(report) {
+  const plainText = formatReport(report);
+  const richHtml = generateReportHtml(report);
+
+  if (navigator.clipboard && window.ClipboardItem) {
+    const item = new ClipboardItem({
+      'text/plain': new Blob([plainText], { type: 'text/plain' }),
+      'text/html': new Blob([richHtml], { type: 'text/html' })
+    });
+    await navigator.clipboard.write([item]);
+    return;
+  }
+
+  await navigator.clipboard.writeText(plainText);
 }
 
 function newConversation() {
