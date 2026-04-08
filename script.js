@@ -142,7 +142,11 @@ function renderReport(r) {
       <h3 class="section-title">Steps to Reproduce</h3>
       <div class="section-content">
         <ol class="steps-list">
-          ${(r.Steps_to_Reproduce || ['Not specified']).map(s => '<li>' + s + '</li>').join('')}
+          ${(r.Steps_to_Reproduce || ['Not specified']).map(s => {
+  // ذكي: يتعامل مع النص أو الكائن
+  let text = typeof s === 'object' ? (s.step || s.description || JSON.stringify(s)) : s;
+  return '<li>' + text + '</li>';
+}).join('')}
         </ol>
       </div>
     </div>
