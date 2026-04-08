@@ -23,8 +23,10 @@ export async function onRequest(context) {
 
     const latestUserRequest = safeString(messages[messages.length - 1]?.content || '');
     const isRevision = !!currentReport;
+    const parsedContext = parseMenaitechContext(latestUserRequest);
 
-    const systemPrompt = `You are a Senior QA/QC Engineer (15+ years) specialized in HR & Payroll systems (Menaitech HRMS).
+    const systemPrompt = `You are a Senior QA/QC Engineer (15+ years) specialized in Menaitech systems, especially HR, Payroll, MenaPAY, MenaHR, MenaME application, and MenaME Web.
+
 Your ONLY task is to generate or update professional Bug Reports in English.
 
 --------------------------------------------------
@@ -35,85 +37,98 @@ Your ONLY task is to generate or update professional Bug Reports in English.
   - answer general questions
   - provide advice
   - engage in discussions
-  - add any commentary outside the bug report
+  - add commentary outside the bug report
+  - ask follow-up questions
 - If the user request is not related to bug reporting:
-  - politely refuse
-  - do NOT provide any additional explanation
+  - politely refuse in the JSON output context as best as possible
+  - do NOT provide additional explanation outside the report structure
 - The output must always be a Bug Report only, following the required JSON format.
 
 --------------------------------------------------
+[OUTPUT FORMAT - STRICT JSON ONLY]
+Return ONLY valid JSON in this exact structure:
+{
+  "Title": "",
+  "Description": "",
+  "Steps_to_Reproduce": [],
+  "Expected_Result": "",
+  "Actual_Result": "",
+  "Environment": "",
+  "Version": "",
+  "Severity": "",
+  "Priority": "",
+  "Impact": "",
+  "Attachments": ""
+}
+
+Do not wrap the JSON in markdown.
+Do not add extra text before or after the JSON.
+
+--------------------------------------------------
 [STRUCTURE - MANDATORY]
-Title
-Description
-Steps to Reproduce
-Expected Result
-Actual Result
-Environment
-Version
-Severity
-Priority
-Impact
-Attachments
+The bug report must always contain:
+- Title
+- Description
+- Steps to Reproduce
+- Expected Result
+- Actual Result
+- Environment
+- Version
+- Severity
+- Priority
+- Impact
+- Attachments
 
 --------------------------------------------------
 [LANGUAGE]
 - Output MUST be in English only.
+- Use professional QA wording.
+- Keep wording clear and realistic.
+- Avoid robotic over-explanation.
 
 --------------------------------------------------
 [WRITING STYLE - BALANCED DETAIL]
 - Write in a clear, professional, and well-structured manner.
-- The report must be detailed enough to fully explain the issue, but not unnecessarily long.
-- Avoid overly short responses and avoid excessive verbosity.
-- Focus on clarity, relevance, and readability.
-- Each section should contain meaningful information without repetition or filler.
-- Prefer concise explanations that fully deliver the idea.
+- The report must be detailed enough to explain the issue correctly, but not excessively long.
+- Avoid very short, vague, or generic wording.
+- Avoid unnecessary repetition.
+- Keep each field focused on its purpose.
+- The report should read like a real QA bug report, not like an essay.
 
 --------------------------------------------------
-[DESCRIPTION RULE - BALANCED]
+[TITLE RULES]
+- Title must be concise, specific, and bug-focused.
+- Do not make it too long.
+- Mention the affected process or feature when clear.
+- Avoid unnecessary prefixes like "Bug:" unless strongly needed.
+
+--------------------------------------------------
+[DESCRIPTION RULES]
 The Description must:
-- clearly explain where the issue occurred (module/screen/system if provided)
+- explain where the issue occurred if known
 - describe what the user was trying to do
-- explain the business process involved
-- describe what went wrong
-- be clear, easy to understand, and logically structured
-- avoid overly long paragraphs
-- avoid unnecessary repetition
-- avoid generic or vague wording
-- aim for a balanced length (typically 2–4 well-formed sentences)
+- explain the relevant business process
+- state what went wrong
+- remain readable and logically structured
+- usually be around 2-4 strong sentences
+- avoid filler or generic statements
+
+Do NOT:
+- invent system names or module names
+- invent business assumptions unsupported by the user input
 
 --------------------------------------------------
 [DETAIL RULE]
-The report should include, when available or clearly implied:
-- where the issue occurred (module / screen / system if provided)
+Include, when available or clearly implied:
+- where the issue occurred
 - what the user was trying to do
-- the relevant business context (HR / payroll process)
-- any important conditions before the issue
+- business context
+- important conditions before the issue
 - why the issue matters
-- Do not force missing details.
-- Do not assume or invent information.
-- Add context only when it improves clarity.
 
---------------------------------------------------
-[HR & PAYROLL CONTEXT]
-Understand issues related to:
-- Salary Calculation / Salary Slip
-- Leaves, Vacations (paid/unpaid)
-- Overtime
-- Allowances / Deductions
-- Social Security / Health Insurance
-- Employee data
-- Requests & approvals
-- Workflow
-- Login / credentials
-- MenaME Mobile
-- MenaME Web
-
-Also handle technical issues:
-- validation
-- calculation errors
-- permissions
-- data mismatch
-- system errors
+Do NOT force missing details.
+Do NOT invent data.
+Do NOT assume hidden steps.
 
 --------------------------------------------------
 [MENATECH NAVIGATION RULES - VERY IMPORTANT]
@@ -130,40 +145,14 @@ STRICT RULES:
 - Do NOT add "as an administrator" unless the user explicitly mentioned that role.
 - Do NOT invent module names such as "Employee Management module" unless the user explicitly provided that exact screen/module name.
 - Do NOT invent screen names, buttons, or paths that are not explicitly mentioned or strongly implied by the scenario.
-- If employee code is provided, use it only as test data or credential context when relevant, but do NOT invent where it was entered unless the screen is clearly known from the user input.
-- If the user gives credentials or slash-formatted data such as employee code / password / version, infer them carefully as test data when strongly implied, but do NOT force the exact format in the report.
-- Different user formats may represent employee code, password, version, or environment. Interpret them contextually and conservatively.
+- If employee code is provided, use it only as test data when relevant, but do NOT invent where it was entered unless the screen is clearly known from the user input.
+- Different users may send internal QA values in different styles. Interpret them carefully and conservatively.
 
 --------------------------------------------------
-[TERMINOLOGY]
-Arabic mapping:
-- "إجازة" = Vacation
-- "مغادرة" = Leave
-- "حركة" = Transaction
-- "عمل إضافي" = Overtime
-- "حسبة الراتب" = Salary Calculation
-- salary output = Salary Slip
-
---------------------------------------------------
-[STEPS]
-Steps must:
-- include navigation if available
-- include preconditions when needed
-- include user actions
-- include system responses when relevant
-- stay concise and logical
-- avoid unnecessary or repetitive micro-steps
-- include only the minimum logical steps needed to reproduce the issue accurately
-- usually be around 3-6 steps unless the scenario clearly requires more
-- never expand obvious actions into too many tiny steps
-
-If values are given (salary, allowance, overtime, leave) → include them.
-
---------------------------------------------------
-[STEPS PRECISION RULES - STRICT]
+[STEPS RULES - STRICT]
 Steps to Reproduce must reflect the actual business flow only.
 
-- Do NOT invent fake screens, fake modules, or fake buttons.
+- Do NOT invent fake screens, fake modules, fake tabs, or fake buttons.
 - Do NOT write "Navigate to the Employee Management module" unless the user explicitly mentioned that exact module.
 - Do NOT write "Click on the 'Salary Calculation' button" unless the user explicitly mentioned such a button exists.
 - For salary calculation scenarios, prefer natural business wording such as:
@@ -172,54 +161,140 @@ Steps to Reproduce must reflect the actual business flow only.
   - "Calculate salary for month X."
 - If a month is mentioned, include it exactly.
 - If an employee code is provided, include it only where logically relevant, without inventing unsupported screen names.
-- Use the minimum number of realistic steps needed to reproduce the issue.
-- Avoid over-explaining obvious actions.
-- Avoid technical assumptions not explicitly supported by the user input.
+- Use only the minimum realistic steps needed to reproduce the issue accurately.
+- Usually steps should be around 3-6 steps unless the scenario clearly requires more.
+- Do NOT over-expand obvious actions.
+- Do NOT add unnecessary login steps unless login is directly relevant to reproducing the issue.
+- Keep steps short, logical, and realistic.
 
 --------------------------------------------------
-[DATA RULE]
-- Include only data provided by the user.
-- Do NOT invent employee info.
-- Do NOT force Employee Name or Code.
-- If scenario includes creating employee → include given setup details only.
+[LOGIN DATA / VERSION / TEST DATA INTERPRETATION - STRICT]
+In Menaitech systems, login is based on:
+- Username
+- Password
+- Company Code
+- Branch Code
+
+Users may provide compact QA data in different formats. You must interpret them carefully.
+
+----------------------------------------
+[LOGIN SHORTHAND PATTERNS - HIGH PRIORITY]
+
+Recognized formats:
+
+Pattern 1:
+username/password/companyCode/branchCode
+Example:
+sa/1/mena/kw
+
+Pattern 2:
+username,password,companyCode,branchCode
+Example:
+sa,1,mena,5842
+
+If the input matches either pattern:
+- Username = first value
+- Password = second value
+- Company Code = third value
+- Branch Code = fourth value
+
+STRICT RULES:
+- Treat these formats as login credentials.
+- Do NOT reinterpret their meaning.
+- Do NOT reorder values.
+- Do NOT drop any value.
+
+----------------------------------------
+[VERSION / ENVIRONMENT IDENTIFICATION]
+
+Users may provide environment/version indicators such as:
+- QA
+- UAT
+- PROD
+- Aug
+- Jul
+- Revamp
+- New Version
+- SQL2016
+- Aug SQL2016
+- patch names
+- or other internal release labels
+
+RULES:
+- If a value clearly represents environment or version, classify it as Version.
+- Do NOT assume every short token is a version unless context supports it.
+- Version labels may appear:
+  - alone
+  - alongside login shorthand
+  - or inside free text
+
+----------------------------------------
+[EMPLOYEE / TEST DATA IDENTIFICATION]
+
+Users may also provide:
+- Employee Codes (for example: emp3245, 3452, etc.)
+- Test values
+- Internal references
+
+RULES:
+- Treat employee codes as test data, NOT login credentials.
+- Do NOT mix employee code with login parsing.
+- Use employee code only where logically relevant.
+- Do NOT invent where it was entered.
+
+----------------------------------------
+[VERSION FIELD CONSTRUCTION - VERY IMPORTANT]
+
+When constructing the Version field:
+
+Case 1: Login shorthand only
+Format:
+Username: <value>
+Password: <value>
+Company Code: <value>
+Branch Code: <value>
+
+Case 2: Version/environment only
+Format:
+Environment/Version: <value>
+
+Case 3: Both login shorthand + version exist
+Format:
+Environment/Version: <value>
+Username: <value>
+Password: <value>
+Company Code: <value>
+Branch Code: <value>
+
+----------------------------------------
+[CRITICAL RULES]
+- Do NOT expose unnecessary credentials unless they are required for reproduction.
+- Do NOT place login credentials inside Steps unless login itself is part of the issue.
+- Do NOT guess missing values.
+- Do NOT invent login data.
+- Do NOT confuse employee code with username.
+- Always keep Version field clean, structured, and readable.
 
 --------------------------------------------------
-[TEST DATA INTERPRETATION RULES]
-Users may provide compact internal QA test data in multiple formats.
-Examples may include employee code, password, environment, patch version, or other internal reference values.
-
-Rules:
-- Interpret compact QA data conservatively and contextually.
-- Do NOT assume one rigid format.
-- If the meaning is reasonably clear from context, use the values appropriately in the report.
-- If the values appear to represent employee code / password / version / environment, incorporate them only where relevant.
-- Do NOT expose unnecessary credentials in the bug report unless they are needed for reproduction.
-- Prefer using such values in Preconditions, Environment, Version, or Steps only when clearly relevant.
-
---------------------------------------------------
-[ENVIRONMENT]
-- If provided → include
-- If not → ""
+[ENVIRONMENT RULE]
+- If the user explicitly gives environment details, include them in Environment.
+- If not provided, return an empty string for Environment.
+- Do not move login shorthand into Environment unless the user clearly intended that.
 
 --------------------------------------------------
 [BUG UNDERSTANDING]
-Reflect bug type implicitly:
-- UI / Backend / Calculation / Validation / Workflow / Permission / Data issue
-Add a short logical hint if possible (no guessing).
+Reflect the bug type implicitly if relevant:
+- UI
+- Backend
+- Calculation
+- Validation
+- Workflow
+- Permission
+- Data mismatch
+- App / Web issue
 
---------------------------------------------------
-[CONSISTENCY]
-Highlight mismatches when relevant:
-- Salary Calculation vs Salary Slip
-- Transactions vs Net Salary
-- UI vs actual result
-
---------------------------------------------------
-[REPRODUCIBILITY]
-Mention if clear:
-- always
-- condition-based
-- employee-specific
+Do not add a separate bug type field.
+Do not guess a technical root cause.
 
 --------------------------------------------------
 [SEVERITY / PRIORITY]
@@ -261,29 +336,21 @@ If the user asks to modify, refine, shorten, rewrite, add, remove, or correct a 
 - Do NOT remove details unless the user explicitly asks to shorten, simplify, or remove them.
 - If the user asks to add something, add it only in the relevant field(s), without rewriting unrelated fields.
 - If the user asks to fix grammar in one section, fix grammar in that section only.
-
-Additional strict revision behavior:
 - If the user requests a change in any specific field, update that field only.
 - The rest of the report must remain exactly unchanged, including wording, order, and content.
 - This rule applies to ALL fields, not only Severity or Priority.
 
 --------------------------------------------------
-[OUTPUT - STRICT JSON]
-Return ONLY:
-{
-  "Title": "",
-  "Description": "",
-  "Steps_to_Reproduce": [],
-  "Expected_Result": "",
-  "Actual_Result": "",
-  "Environment": "",
-  "Version": "",
-  "Severity": "",
-  "Priority": "",
-  "Impact": "",
-  "Attachments": ""
-}
-No extra text.`;
+[DATA RULE]
+- Include only data provided by the user or clearly inferable from the recognized login shorthand patterns.
+- Do NOT invent employee names, IDs, modules, screens, tabs, buttons, or credentials.
+- If values are not clear, leave the related field generic or empty rather than inventing.
+
+--------------------------------------------------
+[FINAL REMINDER]
+You must behave like a professional QA bug report writer for Menaitech systems.
+Return only valid JSON in the required structure.
+`;
 
     const preparedMessages = buildModelMessages(messages, currentReport);
 
@@ -324,7 +391,6 @@ No extra text.`;
       normalized = fallbackReportFromText(rawContent);
     }
 
-    // Enforce surgical updates on top of the current report when this is a revision.
     if (isRevision) {
       normalized = preserveUnrequestedFields(
         normalizeReport(currentReport),
@@ -333,8 +399,8 @@ No extra text.`;
       );
     }
 
-    // Optional direct override for explicitly requested severity/priority values.
     normalized = applyExplicitFieldOverrides(normalized, latestUserRequest);
+    normalized = applyParsedMenaitechContext(normalized, parsedContext, latestUserRequest);
 
     const assistantMessage = isRevision
       ? 'I updated the report based on your latest request.'
@@ -392,25 +458,23 @@ function buildModelMessages(messages, currentReport) {
 }
 
 function buildHistoricalUserInstruction(issueText) {
-  return `Generate a highly detailed and professional bug report based on the issue below.
+  return `Generate a professional Menaitech bug report based on the issue below.
+
 Strict requirements:
 - Follow the exact JSON structure defined in the system instructions.
-- The report must be rich in details and not overly short.
-- Expand Description, Actual Result, and Impact properly.
-- Include business and system context whenever possible.
-- Do NOT generate or assume missing data.
-- If Environment or Version are not provided, leave them as empty strings.
-- Steps must be clear, logically ordered, concise, and only as many as needed to reproduce the issue accurately.
-- Prefer concise steps. Avoid over-expanding obvious micro-actions.
-- Include navigation path and values only when they are relevant and actually provided.
-Severity & Priority rules:
-- If the issue involves Salary Calculation, salary processing, or Salary Slip → Severity = High, Priority = High.
-- If the issue causes any financial discrepancy (increase, decrease, missing salary, wrong amount) → Severity = Critical, Priority = High.
-Focus areas:
-- HR / Payroll context including but not limited to: Leaves, Vacations, Overtime, Allowances, Deductions, Social Security, Health Insurance, and any other related HR or payroll operations
-- Workflow processes including but not limited to: requests, approvals, manager actions, and other workflow-related scenarios
-- System modules only if explicitly mentioned by the user (do not assume system names)
-- Technical issues including but not limited to: validation, calculation, permissions, data mismatch, system errors, and any other related system or logic issues
+- Keep the report realistic, professional, and readable.
+- Do NOT invent screens, modules, or buttons.
+- Use Menaitech-specific logic where relevant.
+- Keep steps concise and logical.
+- If the issue is related to finance/payroll, steps should usually start with "Open the MenaPAY tab."
+- If the issue is related to appraisal/performance/career path/certificates/vacancy, steps should usually start with "Open the MenaHR tab."
+- If the issue is related to the mobile app, steps should usually start with "Open MenaME application."
+- If the issue is related to MenaME web, steps should usually start with "Open the MenaME Web."
+- Do NOT add login steps unless login itself is relevant.
+- Do NOT use generic phrases like "as an administrator" unless explicitly stated.
+- If Environment or Version are not provided, leave them empty unless recognized shorthand login/version data is clearly present.
+- Financial discrepancy issues should usually be Severity = Critical and Priority = Urgent.
+- Salary Calculation / Salary Slip issues should usually be Severity = High and Priority = High unless a financial discrepancy makes them more severe.
 
 Issue details:
 ${issueText}`;
@@ -460,7 +524,7 @@ function preserveUnrequestedFields(currentReport, updatedReport, latestUserReque
     Expected_Result: /\bexpected\b|\bexpected result\b/,
     Actual_Result: /\bactual\b|\bactual result\b/,
     Environment: /\benvironment\b|\benv\b/,
-    Version: /\bversion\b/,
+    Version: /\bversion\b|\blogin\b|\busername\b|\bpassword\b|\bcompany code\b|\bbranch code\b/,
     Severity: /\bseverity\b/,
     Priority: /\bpriority\b/,
     Impact: /\bimpact\b|\bbusiness impact\b/,
@@ -487,17 +551,12 @@ function preserveUnrequestedFields(currentReport, updatedReport, latestUserReque
     }
   }
 
-  // Heuristics: some requests imply a target field even without naming it directly.
-  if (/\bgrammar\b|\btypo\b|\bwording\b/.test(request)) {
-    if (!allowedFields.size) {
-      allowedFields.add('Description');
-    }
+  if (/\bgrammar\b|\btypo\b|\bwording\b/.test(request) && !allowedFields.size) {
+    allowedFields.add('Description');
   }
 
-  if (/\bshorten\b|\bsimplify\b|\bmake it shorter\b/.test(request)) {
-    if (!allowedFields.size) {
-      allowedFields.add('Description');
-    }
+  if (/\bshorten\b|\bsimplify\b|\bmake it shorter\b/.test(request) && !allowedFields.size) {
+    allowedFields.add('Description');
   }
 
   if (/\badd\b/.test(request) && /\bstep\b/.test(request)) {
@@ -508,7 +567,6 @@ function preserveUnrequestedFields(currentReport, updatedReport, latestUserReque
     allowedFields.add('Steps_to_Reproduce');
   }
 
-  // If no specific target field is recognized, allow the model output as-is.
   if (!allowedFields.size) {
     return proposed;
   }
@@ -551,6 +609,232 @@ function applyExplicitFieldOverrides(report, latestUserRequest) {
   }
 
   return updated;
+}
+
+function parseMenaitechContext(userText) {
+  const text = safeString(userText);
+  if (!text) {
+    return {
+      login: null,
+      versionLabel: '',
+      employeeCode: '',
+      mentionsLogin: false
+    };
+  }
+
+  const login = parseLoginShorthand(text);
+  const versionLabel = detectVersionLabel(text, login);
+  const employeeCode = detectEmployeeCode(text, login);
+  const mentionsLogin = /\blogin\b|\bsign in\b|\bsignin\b|\blog in\b|\bauthentication\b|\bcredentials\b/.test(
+    text.toLowerCase()
+  );
+
+  return {
+    login,
+    versionLabel,
+    employeeCode,
+    mentionsLogin
+  };
+}
+
+function parseLoginShorthand(text) {
+  const slashMatch = text.match(/(?:^|[\s(])([^\/\s,]+)\/([^\/\s,]+)\/([^\/\s,]+)\/([^\/\s,]+)(?:[\s),.]|$)/);
+  const commaMatch = text.match(/(?:^|[\s(])([^,\s\/]+),([^,\s\/]+),([^,\s\/]+),([^,\s\/]+)(?:[\s),.]|$)/);
+
+  const match = slashMatch || commaMatch;
+  if (!match) return null;
+
+  return {
+    username: safeString(match[1]),
+    password: safeString(match[2]),
+    companyCode: safeString(match[3]),
+    branchCode: safeString(match[4])
+  };
+}
+
+function detectVersionLabel(text, login) {
+  const cleaned = safeString(text);
+
+  const knownPatterns = [
+    /\baug\s*sql\s*2016\b/i,
+    /\bnew version\b/i,
+    /\brevamp\b/i,
+    /\bqa\b/i,
+    /\buat\b/i,
+    /\bprod\b/i,
+    /\baug\b/i,
+    /\bjul\b/i,
+    /\bsql\s*2016\b/i,
+    /\bpatch[\w-]*\b/i
+  ];
+
+  for (const pattern of knownPatterns) {
+    const match = cleaned.match(pattern);
+    if (match?.[0]) return match[0].trim();
+  }
+
+  if (login) {
+    return '';
+  }
+
+  return '';
+}
+
+function detectEmployeeCode(text, login) {
+  const cleaned = safeString(text);
+
+  const codePatterns = [
+    /\bemp\d+\b/i,
+    /\bemployee\s*code\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i
+  ];
+
+  for (const pattern of codePatterns) {
+    const match = cleaned.match(pattern);
+    if (!match) continue;
+
+    if (match[1]) {
+      return safeString(match[1]);
+    }
+
+    return safeString(match[0]);
+  }
+
+  if (login) {
+    const rawTokens = extractRawTokens(cleaned);
+    if (rawTokens.length === 4) return '';
+  }
+
+  return '';
+}
+
+function extractRawTokens(text) {
+  if (!text) return [];
+
+  if (text.includes('/')) {
+    const slashParts = text.split('/').map((part) => part.trim()).filter(Boolean);
+    if (slashParts.length === 4) return slashParts;
+  }
+
+  if (text.includes(',')) {
+    const commaParts = text.split(',').map((part) => part.trim()).filter(Boolean);
+    if (commaParts.length === 4) return commaParts;
+  }
+
+  return [];
+}
+
+function applyParsedMenaitechContext(report, parsedContext, latestUserRequest) {
+  const updated = normalizeReport(report);
+  const request = safeString(latestUserRequest).toLowerCase();
+
+  const shouldUpdateVersion =
+    !!parsedContext &&
+    (
+      !!parsedContext.login ||
+      !!parsedContext.versionLabel
+    ) &&
+    (
+      !updated.Version ||
+      /\bversion\b|\blogin\b|\busername\b|\bpassword\b|\bcompany code\b|\bbranch code\b/.test(request) ||
+      !request
+    );
+
+  if (shouldUpdateVersion) {
+    updated.Version = buildVersionField(parsedContext, updated.Version);
+  }
+
+  if (!updated.Steps_to_Reproduce.length) {
+    updated.Steps_to_Reproduce = buildFallbackStepsFromContext(parsedContext, latestUserRequest);
+  }
+
+  return normalizeReport(updated);
+}
+
+function buildVersionField(parsedContext, existingVersion) {
+  if (!parsedContext) return existingVersion || '';
+
+  const parts = [];
+
+  if (parsedContext.versionLabel) {
+    parts.push(`Environment/Version: ${parsedContext.versionLabel}`);
+  }
+
+  if (parsedContext.login) {
+    parts.push(`Username: ${parsedContext.login.username}`);
+    parts.push(`Password: ${parsedContext.login.password}`);
+    parts.push(`Company Code: ${parsedContext.login.companyCode}`);
+    parts.push(`Branch Code: ${parsedContext.login.branchCode}`);
+  }
+
+  if (!parts.length) {
+    return existingVersion || '';
+  }
+
+  return parts.join('\n');
+}
+
+function buildFallbackStepsFromContext(parsedContext, latestUserRequest) {
+  const request = safeString(latestUserRequest);
+  const lower = request.toLowerCase();
+
+  const steps = [];
+  const firstStep = inferFirstStep(lower);
+
+  if (firstStep) {
+    steps.push(firstStep);
+  }
+
+  if (/\bsalary calculation\b|\bcalculate salary\b|\bsalary\b|\bpayroll\b/.test(lower)) {
+    steps.push('Go to Salary Calculation.');
+
+    const monthMatch =
+      request.match(/\bmonth\s+([A-Za-z0-9_-]+)/i) ||
+      request.match(/\bfor\s+month\s+([A-Za-z0-9_-]+)/i);
+
+    if (monthMatch?.[1]) {
+      steps.push(`Calculate salary for month ${monthMatch[1]}.`);
+    } else {
+      steps.push('Calculate the salary for the required month.');
+    }
+  }
+
+  if (parsedContext?.employeeCode) {
+    steps.push(`Use employee code ${parsedContext.employeeCode} where applicable.`);
+  }
+
+  return steps.slice(0, 6);
+}
+
+function inferFirstStep(lowerText) {
+  if (
+    /\bmename application\b|\bmobile\b|\bapp\b|\bandroid\b|\bios\b/.test(lowerText)
+  ) {
+    return 'Open MenaME application.';
+  }
+
+  if (
+    /\bmename web\b|\bmena me web\b|\bweb version\b/.test(lowerText)
+  ) {
+    return 'Open the MenaME Web.';
+  }
+
+  if (
+    /\bappraisal\b|\bperformance\b|\bcareer path\b|\bcertificate\b|\bcertificates\b|\bvacancy\b|\brecruitment\b/.test(
+      lowerText
+    )
+  ) {
+    return 'Open the MenaHR tab.';
+  }
+
+  if (
+    /\bpayroll\b|\bsalary\b|\bsalary calculation\b|\bsalary slip\b|\ballowance\b|\bdeduction\b|\bovertime\b|\bsocial security\b|\binsurance\b|\bnet salary\b|\bfinancial\b/.test(
+      lowerText
+    )
+  ) {
+    return 'Open the MenaPAY tab.';
+  }
+
+  return '';
 }
 
 function extractJSONString(rawContent) {
@@ -637,9 +921,7 @@ function extractSteps(text) {
       if (Array.isArray(parsed)) {
         return parsed.map((step) => safeString(step)).filter(Boolean);
       }
-    } catch (_) {
-      // ignore
-    }
+    } catch (_) {}
   }
 
   const numbered = stepsBlock
@@ -674,14 +956,16 @@ function normalizeSteps(steps) {
         }
         return safeString(step);
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .slice(0, 10);
   }
 
   if (typeof steps === 'string' && steps.trim()) {
     return steps
       .split(/\n?\s*\d+\.\s+|\n-\s+/)
       .map((step) => step.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .slice(0, 10);
   }
 
   return [];
