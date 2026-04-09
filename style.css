@@ -235,7 +235,6 @@ button {
 }
 
 .toolbar-btn:hover,
-.primary-btn:hover,
 .secondary-btn:hover {
   background: var(--surface-soft);
 }
@@ -253,6 +252,9 @@ button {
 }
 
 .primary-btn:hover {
+  background: var(--text);
+  color: var(--surface);
+  border-color: var(--text);
   filter: brightness(1.05);
 }
 
