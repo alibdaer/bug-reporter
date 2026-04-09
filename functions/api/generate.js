@@ -134,7 +134,7 @@ Accuracy is more important than completeness. If a field is not clearly supporte
         messages: [{ role: 'system', content: systemPrompt }, ...preparedMessages],
         max_tokens: 3000,
         temperature: 0.05,
-        enable_thinking: false
+        enable_thinking: true
       })
     });
 
