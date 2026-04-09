@@ -61,7 +61,7 @@ function updateThemeToggleLabel(isDark) {
   if (!elements.themeToggle) return;
   const icon = elements.themeToggle.querySelector('.theme-icon');
   const label = elements.themeToggle.querySelector('.theme-label');
-  if (icon) icon.textContent = isDark ? '☀️' : '';
+  if (icon) icon.textContent = isDark ? '☀️' : '🌙';
   if (label) label.textContent = isDark ? 'Light mode' : 'Dark mode';
 }
 
