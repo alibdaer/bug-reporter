@@ -130,11 +130,11 @@ Accuracy is more important than completeness. If a field is not clearly supporte
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'qwen3.5-plus',
+        model: 'qwen3.6-plus',
         messages: [{ role: 'system', content: systemPrompt }, ...preparedMessages],
-        max_tokens: 3000,
+        max_tokens: 1600,
         temperature: 0.05,
-        enable_thinking: true
+        enable_thinking: false
       })
     });
 
