@@ -12,115 +12,18 @@ export async function onRequest(context) {
   try {
     const body = await request.json();
     const messages = Array.isArray(body.messages) ? body.messages : [];
-    const currentReport =
-      body.currentReport && typeof body.currentReport === 'object'
-        ? body.currentReport
-        : null;
+    const currentReport = body.currentReport && typeof body.currentReport === 'object' ? normalizeReport(body.currentReport) : null;
 
     if (!messages.length) {
       return jsonResponse({ error: 'No valid user messages provided' }, 400);
     }
 
-    const latestUserRequest = safeString(messages[messages.length - 1]?.content || '');
+    const latestUserRequest = safeString(messages[messages.length - 1]?.content);
     const isRevision = !!currentReport;
     const parsedContext = parseMenaitechContext(latestUserRequest);
 
-    const systemPrompt = `You are a Senior QA/QC Engineer specialized in Menaitech systems.
-
-Your ONLY task is to generate or revise professional bug reports in English.
-Return ONLY valid JSON in this exact structure:
-{
-  "Title": "",
-  "Description": "",
-  "Steps_to_Reproduce": [],
-  "Expected_Result": "",
-  "Actual_Result": "",
-  "Environment": "",
-  "Version": "",
-  "Severity": "",
-  "Priority": "",
-  "Impact": "",
-  "Attachments": ""
-}
-
-CORE RULES:
-- Output English only.
-- Do not add any text outside the JSON.
-- Do not ask follow-up questions.
-- Do not explain anything outside the bug report.
-- Keep the wording professional, realistic, and concise.
-- Do not redesign the report structure.
-
-FACTUALITY RULES:
-- Use only information provided by the user.
-- Make conservative inferences only when they are directly supported by the user text.
-- If a detail was not given, leave it empty instead of guessing.
-- Never invent screens, modules, tabs, buttons, paths, roles, credentials, versions, months, or environments.
-- Never convert a general issue into a specific screen or business path unless the user explicitly mentioned it.
-
-TITLE:
-- Make it concise, specific, and bug-focused.
-- Mention the affected feature or process only if it was actually mentioned.
-
-DESCRIPTION:
-- 2-4 strong sentences when enough information exists.
-- Explain what the user was doing, what happened, and why it matters.
-- Do not invent missing business context.
-- Do not invent module names or screen names.
-
-STEPS TO REPRODUCE:
-- Steps must come only from the user's wording or from direct, unavoidable implications.
-- Do not introduce any screen, page, module, tab, button, or navigation path that the user did not mention.
-- Do not add login steps unless login/authentication is explicitly relevant.
-- Do not add role names such as administrator unless explicitly stated.
-- Keep steps short, clear, and realistic.
-- Usually 3-6 steps when enough information exists.
-- If the user did not provide enough information for a certain step, keep the steps minimal rather than guessing.
-- It is better to write fewer accurate steps than longer invented steps.
-
-VERSION / LOGIN / TEST DATA:
-- Only fill Version if the user explicitly provided version, environment, release label, or recognized login shorthand.
-- If Version is not explicitly provided, keep Version as an empty string.
-- Recognized login shorthand formats:
-  1) username/password/companyCode/branchCode
-  2) username,password,companyCode,branchCode
-- If recognized login shorthand exists, place it in Version exactly as structured data.
-- Do not guess missing credentials.
-- Treat employee codes as test data, not login data.
-
-ENVIRONMENT:
-- Fill Environment only when explicitly provided.
-- Otherwise keep it empty.
-
-SEVERITY / PRIORITY:
-Allowed Severity: Critical, High, Medium, Low
-Allowed Priority: Urgent, High, Medium, Low
-
-Classification rules:
-- Be conservative.
-- Do NOT default to Critical or Urgent.
-- Use Critical only for truly severe cases such as confirmed financial corruption, confirmed wrong payroll amounts, security risk, data loss, system-wide outage, or a blocker that prevents a critical business operation from continuing.
-- Use Urgent only when immediate action is clearly required because of severe business risk, deadline-sensitive payroll impact, production-wide outage, or similar major harm.
-- Use High for important functional failures with strong business impact but without extreme risk.
-- Use Medium for normal functional issues or unclear impact.
-- Use Low for minor or cosmetic issues.
-- If the user later asks to change Severity or Priority, update only what was requested.
-
-REVISION RULES:
-When a current report is provided, treat it as the base version.
-- Update only the requested part.
-- Keep all untouched fields exactly unchanged.
-- Do not regenerate the whole report from scratch.
-- If the user asks to rewrite, shorten, add, remove, correct, or rephrase a specific part, apply that change only in the relevant field or fields.
-- If the user refers to text that already exists in the current report, update the field containing that text.
-- If the user adds new information, insert it only into the relevant field or fields.
-- Return the full JSON after the requested update.
-
-FINAL RULE:
-Accuracy is more important than completeness. If a field is not clearly supported, leave it empty.`;
-
-    const preparedMessages = buildModelMessages(messages, currentReport);
-
+    const systemPrompt = buildSystemPrompt();
+    const preparedMessages = buildModelMessages(messages, currentReport, parsedContext);
     const aiUrl = `${env.QWEN_BASE_URL}/chat/completions`;
 
     const aiResponse = await fetch(aiUrl, {
@@ -132,7 +35,7 @@ Accuracy is more important than completeness. If a field is not clearly supporte
       body: JSON.stringify({
         model: 'qwen3.6-plus',
         messages: [{ role: 'system', content: systemPrompt }, ...preparedMessages],
-        max_tokens: 1600,
+        max_tokens: 1200,
         temperature: 0.05,
         enable_thinking: false
       })
@@ -140,10 +43,7 @@ Accuracy is more important than completeness. If a field is not clearly supporte
 
     if (!aiResponse.ok) {
       const errorText = await safeReadText(aiResponse);
-      return jsonResponse(
-        { error: 'AI error', status: aiResponse.status, details: errorText },
-        aiResponse.status
-      );
+      return jsonResponse({ error: 'AI error', status: aiResponse.status, details: errorText }, aiResponse.status);
     }
 
     const aiData = await aiResponse.json();
@@ -151,647 +51,183 @@ Accuracy is more important than completeness. If a field is not clearly supporte
     const cleanJSON = extractJSONString(rawContent);
 
     let normalized;
-
     try {
-      const parsed = JSON.parse(cleanJSON);
-      normalized = normalizeReport(parsed);
-    } catch (parseError) {
-      console.error('JSON parse failed:', parseError);
-      normalized = fallbackReportFromText(rawContent);
+      normalized = normalizeReport(JSON.parse(cleanJSON));
+    } catch (error) {
+      console.error('JSON parse failed:', error);
+      normalized = fallbackReportFromText(rawContent, currentReport);
     }
 
     if (isRevision) {
-      normalized = preserveUnrequestedFields(
-        normalizeReport(currentReport),
-        normalized,
-        latestUserRequest
-      );
+      normalized = preserveUnrequestedFields(currentReport, normalized, latestUserRequest);
     }
 
     normalized = applyExplicitFieldOverrides(normalized, latestUserRequest);
-    normalized = applyParsedMenaitechContext(normalized, parsedContext, latestUserRequest);
-    normalized = applyConservativeClassification(
-      normalized,
-      latestUserRequest,
-      isRevision ? normalizeReport(currentReport) : null
-    );
+    normalized = applyParsedMenaitechContext(normalized, parsedContext, latestUserRequest, currentReport);
+    normalized = applyConservativeClassification(normalized, latestUserRequest, currentReport);
+    normalized = finalizeReport(normalized, currentReport, isRevision);
 
     const assistantMessage = isRevision
       ? 'I updated the report based on your latest request.'
       : 'Here is your bug report.';
 
-    return jsonResponse(
-      {
-        type: 'json',
-        content: normalized,
-        message: assistantMessage
-      },
-      200
-    );
+    return jsonResponse({ type: 'json', content: normalized, message: assistantMessage }, 200);
   } catch (error) {
     console.error('Internal error:', error);
     return jsonResponse({ error: 'Internal error' }, 500);
   }
 }
 
-function buildModelMessages(messages, currentReport) {
-  const sanitizedMessages = messages
-    .filter(
-      (message) =>
-        message &&
-        typeof message.content === 'string' &&
-        ['user', 'assistant'].includes(message.role)
-    )
+function buildSystemPrompt() {
+  return `You are a Senior QA/QC Engineer specialized in writing professional bug reports for Menaitech-related testing.
+Your ONLY task is to generate or revise professional bug reports in English.
+Return ONLY valid JSON in this exact structure:
+{
+  "Title": "",
+  "Description": "",
+  "Steps_to_Reproduce": [],
+  "Expected_Result": "",
+  "Actual_Result": "",
+  "Version": "",
+  "Severity": "",
+  "Priority": "",
+  "Impact": "",
+  "Attachments": ""
+}
+
+CORE RULES:
+- Output English only.
+- Do not add any text outside the JSON.
+- Keep wording professional, realistic, concise, and useful.
+- Never return Environment. Version is the only field for version or credentials.
+- Version must always exist in the JSON. Leave it empty if unsupported.
+- Use only user-provided facts and the supplied parsed context.
+- If a detail was not given, leave it empty instead of guessing.
+- Never invent systems, screen names, modules, tabs, buttons, navigation paths, roles, credentials, employee codes, months, or releases.
+- Mention a system name only if the user explicitly mentioned it.
+- Mention a screen or path only if the user explicitly mentioned it OR if a supplied safe navigation hint explicitly authorizes it.
+- Do not convert a general issue into Salary Calculation or any other screen unless it was explicitly mentioned or explicitly authorized by the safe navigation hint.
+
+DESCRIPTION:
+- Write 2-4 strong sentences when enough information exists.
+- Explain what the user was doing, what happened, and why it matters.
+- Do not invent business context or screen names.
+
+STEPS TO REPRODUCE:
+- Use only the user's wording, the supplied test data, and any supplied safe navigation hint.
+- Keep steps short, clear, and realistic.
+- Prefer fewer accurate steps over longer invented steps.
+- Do not add login unless login is explicitly relevant.
+- If employee code or example data appears in the user text, keep it in steps where it belongs.
+- Never invent employee codes.
+
+VERSION:
+- Only place release/version/credential information in Version.
+- If supplied parsed credentials exist, use them.
+- If supplied version exists, use it.
+- If uncertain, do not guess.
+
+REVISION RULES:
+- When a current report is supplied, treat it as the base version.
+- Apply minimal changes only.
+- Update only the requested field or fields.
+- Keep all untouched fields exactly unchanged.
+- Do not regenerate the whole report from scratch.
+
+SEVERITY / PRIORITY:
+- Allowed Severity: Critical, High, Medium, Low.
+- Allowed Priority: Urgent, High, Medium, Low.
+- Be conservative.
+- Do not default to Critical or Urgent.
+- Use Critical only for clearly severe cases such as confirmed financial corruption, confirmed wrong payroll amounts, security risk, major data loss, system-wide outage, or a blocker that stops a critical business operation.
+- Use Urgent only when immediate action is clearly required due to major business risk, payroll deadline risk, production-wide outage, or equivalent major harm.
+- Use High for important functional failures with strong business impact.
+- Use Medium for normal functional issues or unclear impact.
+- Use Low for minor or cosmetic issues.
+
+FINAL RULE:
+Accuracy is more important than completeness.`;
+}
+
+function buildModelMessages(messages, currentReport, parsedContext) {
+  return messages
+    .filter((message) => message && typeof message.content === 'string' && ['user', 'assistant'].includes(message.role))
     .map((message, index, array) => {
       if (message.role === 'assistant') {
-        return {
-          role: 'assistant',
-          content: 'Report delivered.'
-        };
+        return { role: 'assistant', content: 'Report delivered.' };
       }
 
       const isLatest = index === array.length - 1;
-      const userText = message.content.trim();
-
+      const text = safeString(message.content);
       if (!isLatest) {
-        return {
-          role: 'user',
-          content: buildHistoricalUserInstruction(userText)
-        };
+        return { role: 'user', content: buildHistoricalUserInstruction(text) };
       }
 
       return {
         role: 'user',
         content: currentReport
-          ? buildRevisionUserInstruction(userText, currentReport)
-          : buildInitialUserInstruction(userText)
+          ? buildRevisionUserInstruction(text, currentReport, parsedContext)
+          : buildInitialUserInstruction(text, parsedContext)
       };
     });
-
-  return sanitizedMessages;
 }
 
 function buildHistoricalUserInstruction(issueText) {
   return `Generate a professional bug report from the user's issue.
-
 Strict requirements:
 - Follow the exact JSON structure from the system instruction.
 - Use only details provided by the user.
-- Never invent screens, modules, buttons, paths, tabs, or versions.
-- Never assume salary calculation, payroll screens, or any other business flow unless the user explicitly mentioned them.
+- Never invent screens, modules, buttons, paths, tabs, systems, or versions.
 - Keep steps minimal, clear, and accurate.
 - If details are missing, leave the relevant field empty instead of guessing.
-- Be conservative when assigning Severity and Priority.
-
 Issue details:
 ${issueText}`;
 }
 
-function buildInitialUserInstruction(issueText) {
-  return buildHistoricalUserInstruction(issueText);
+function buildInitialUserInstruction(issueText, parsedContext) {
+  return `Generate a professional bug report from the user's issue.
+Parsed context you may use:
+${JSON.stringify(parsedContext, null, 2)}
+User issue:
+${issueText}`;
 }
 
-function buildRevisionUserInstruction(requestText, currentReport) {
-  return `You previously generated a bug report.
-
-Now update the SAME report according to the user's latest request.
-
-STRICT UPDATE RULES:
-- The current report is the base version.
-- Apply minimal changes only.
-- Update ONLY the requested field or section.
-- Keep every other field EXACTLY unchanged.
-- Do NOT regenerate the whole report from scratch.
-- If the user refers to a sentence, phrase, place, step, or part of the existing report, update the field that contains that content.
-- If the user adds new information, place it only in the relevant field or fields.
-- Do NOT change Severity or Priority unless explicitly requested or unless the user added new information that directly changes business impact.
-- Return the full updated JSON only.
-
+function buildRevisionUserInstruction(requestText, currentReport, parsedContext) {
+  return `You previously generated a bug report. Update the SAME report according to the latest request.
 Current report JSON:
-${JSON.stringify(normalizeReport(currentReport), null, 2)}
-
+${JSON.stringify(currentReport, null, 2)}
+Parsed context you may use:
+${JSON.stringify(parsedContext, null, 2)}
 Latest user request:
 ${requestText}`;
 }
 
-function preserveUnrequestedFields(currentReport, updatedReport, latestUserRequest) {
-  const base = normalizeReport(currentReport);
-  const proposed = normalizeReport(updatedReport);
-  const request = safeString(latestUserRequest);
-  const lowerRequest = request.toLowerCase();
-
-  const fieldMatchers = {
-    Title: /\btitle\b|\bsubject\b|\bheadline\b|\bالعنوان\b/i,
-    Description: /\bdescription\b|\bdesc\b|\bdetails\b|\bsummary\b|\bcontext\b|\bparagraph\b|\btext\b|\bdescription part\b|\bالوصف\b|\bالنص\b|\bالصياغة\b/i,
-    Steps_to_Reproduce: /\bsteps?\b|\breproduce\b|\breproduction\b|\bscenario\b|\bflow\b|\bpath\b|\bstep by step\b|\bالخطوات\b|\bخطوة\b|\bسيناريو\b/i,
-    Expected_Result: /\bexpected\b|\bexpected result\b|\bshould\b|\bالمتوقع\b/i,
-    Actual_Result: /\bactual\b|\bactual result\b|\bcurrent result\b|\bwhat happened\b|\bالنتيجة الفعلية\b|\bالفعلي\b/i,
-    Environment: /\benvironment\b|\benv\b|\bserver\b|\bdatabase\b|\bالبيئة\b/i,
-    Version: /\bversion\b|\blogin\b|\busername\b|\bpassword\b|\bcompany code\b|\bbranch code\b|\brelease\b|\bbuild\b|\bالنسخة\b/i,
-    Severity: /\bseverity\b|\bcriticality\b|\bالخطورة\b/i,
-    Priority: /\bpriority\b|\burgency\b|\bالأولوية\b/i,
-    Impact: /\bimpact\b|\bbusiness impact\b|\beffect\b|\bالأثر\b/i,
-    Attachments: /\battachment\b|\battachments\b|\bscreenshot\b|\bvideo\b|\bfile\b|\bمرفق\b|\bمرفقات\b/i
+function normalizeReport(report) {
+  const normalized = {
+    Title: safeString(report?.Title),
+    Description: safeString(report?.Description),
+    Steps_to_Reproduce: normalizeSteps(report?.Steps_to_Reproduce),
+    Expected_Result: safeString(report?.Expected_Result),
+    Actual_Result: safeString(report?.Actual_Result),
+    Version: normalizeVersionValue(report?.Version),
+    Severity: normalizeSeverity(report?.Severity),
+    Priority: normalizePriority(report?.Priority),
+    Impact: safeString(report?.Impact),
+    Attachments: normalizeAttachments(report?.Attachments)
   };
 
-  const broadRewriteRequest =
-    /\b(rewrite|regenerate|improve the report|improve all|rewrite all|rewrite report|revise the report|update the report|refine the report|make it better|rephrase the report|rewrite it all)\b/i.test(
-      request
-    ) && !hasSpecificFieldMention(lowerRequest, fieldMatchers);
-
-  if (broadRewriteRequest) {
-    return proposed;
-  }
-
-  const allowedFields = detectRequestedFields(base, request, fieldMatchers);
-
-  if (!allowedFields.size) {
-    return proposed;
-  }
-
-  const result = { ...base };
-
-  for (const fieldName of allowedFields) {
-    result[fieldName] = proposed[fieldName];
-  }
-
-  return normalizeReport(result);
+  return normalized;
 }
 
-function detectRequestedFields(currentReport, latestUserRequest, fieldMatchers) {
-  const request = safeString(latestUserRequest);
-  const allowedFields = new Set();
-
-  for (const [fieldName, pattern] of Object.entries(fieldMatchers)) {
-    if (pattern.test(request)) {
-      allowedFields.add(fieldName);
-    }
-  }
-
-  if (/\b(grammar|typo|wording|rephrase|rewrite|shorten|simplify|clarify)\b/i.test(request) && !allowedFields.size) {
-    allowedFields.add('Description');
-  }
-
-  if (/\b(add|include|insert|append)\b/i.test(request) && /\b(step|steps)\b/i.test(request)) {
-    allowedFields.add('Steps_to_Reproduce');
-  }
-
-  if (/\b(remove|delete)\b/i.test(request) && /\b(step|steps)\b/i.test(request)) {
-    allowedFields.add('Steps_to_Reproduce');
-  }
-
-  if (/\b(place|location|screen|module|button|path|tab)\b/i.test(request) || /\bالمكان\b|\bالشاشة\b|\bالمسار\b|\bالتبويب\b/i.test(request)) {
-    allowedFields.add('Description');
-    allowedFields.add('Steps_to_Reproduce');
-  }
-
-  const quotedSegments = [
-    ...request.matchAll(/"([^"]{3,})"/g),
-    ...request.matchAll(/'([^']{3,})'/g),
-    ...request.matchAll(/“([^”]{3,})”/g),
-    ...request.matchAll(/`([^`]{3,})`/g)
-  ]
-    .map((match) => safeString(match[1]))
-    .filter(Boolean);
-
-  for (const segment of quotedSegments) {
-    const owners = findFieldsContainingText(currentReport, segment);
-    owners.forEach((field) => allowedFields.add(field));
-  }
-
-  if (/\bthis sentence\b|\bthis line\b|\bthat sentence\b|\bthat line\b|\bthis part\b|\bthat part\b|\bهذا الجزء\b|\bهذا النص\b|\bهذا السطر\b/i.test(request)) {
-    const referencedOwners = findFieldsContainingText(currentReport, request);
-    referencedOwners.forEach((field) => allowedFields.add(field));
-    if (!referencedOwners.size) {
-      allowedFields.add('Description');
-    }
-  }
-
-  if (/\b(add|include|mention|write|insert)\b/i.test(request) && !allowedFields.size) {
-    allowedFields.add('Description');
-  }
-
-  return allowedFields;
-}
-
-function findFieldsContainingText(report, snippet) {
-  const normalizedSnippet = normalizeComparableText(snippet);
-  const owners = new Set();
-
-  if (!normalizedSnippet) {
-    return owners;
-  }
-
-  for (const [fieldName, value] of Object.entries(report)) {
-    if (Array.isArray(value)) {
-      if (
-        value.some((item) => {
-          const normalizedItem = normalizeComparableText(item);
-          return normalizedItem && (normalizedItem.includes(normalizedSnippet) || normalizedSnippet.includes(normalizedItem));
-        })
-      ) {
-        owners.add(fieldName);
-      }
-      continue;
-    }
-
-    const normalizedValue = normalizeComparableText(value);
-    if (!normalizedValue) continue;
-
-    if (normalizedValue.includes(normalizedSnippet) || normalizedSnippet.includes(normalizedValue)) {
-      owners.add(fieldName);
-    }
-  }
-
-  return owners;
-}
-
-function normalizeComparableText(value) {
-  return safeString(value).toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-function hasSpecificFieldMention(request, fieldMatchers) {
-  return Object.values(fieldMatchers).some((pattern) => pattern.test(request));
-}
-
-function applyExplicitFieldOverrides(report, latestUserRequest) {
-  const updated = normalizeReport(report);
-  const request = safeString(latestUserRequest).toLowerCase();
-
-  const severityMatch =
-    request.match(
-      /(?:change|update|set|make|adjust)\s+(?:the\s+)?severity\s+(?:to|as)?\s*(critical|high|medium|low)/i
-    ) ||
-    request.match(/severity\s*(?:to|as|=|becomes?)\s*(critical|high|medium|low)/i);
-
-  const priorityMatch =
-    request.match(
-      /(?:change|update|set|make|adjust)\s+(?:the\s+)?priority\s+(?:to|as)?\s*(urgent|high|medium|low)/i
-    ) ||
-    request.match(/priority\s*(?:to|as|=|becomes?)\s*(urgent|high|medium|low)/i);
-
-  if (severityMatch?.[1]) {
-    updated.Severity = normalizeSeverity(severityMatch[1]);
-  }
-
-  if (priorityMatch?.[1]) {
-    updated.Priority = normalizePriority(priorityMatch[1]);
-  }
-
-  return updated;
-}
-
-function parseMenaitechContext(userText) {
-  const text = safeString(userText);
-  if (!text) {
-    return {
-      login: null,
-      versionLabel: '',
-      employeeCode: '',
-      mentionsLogin: false
-    };
-  }
-
-  const login = parseLoginShorthand(text);
-  const versionLabel = detectVersionLabel(text, login);
-  const employeeCode = detectEmployeeCode(text, login);
-  const mentionsLogin = /\blogin\b|\bsign in\b|\bsignin\b|\blog in\b|\bauthentication\b|\bcredentials\b/.test(
-    text.toLowerCase()
-  );
-
-  return {
-    login,
-    versionLabel,
-    employeeCode,
-    mentionsLogin
-  };
-}
-
-function parseLoginShorthand(text) {
-  const slashMatch = text.match(/(?:^|[\s(])([^\/\s,]+)\/([^\/\s,]+)\/([^\/\s,]+)\/([^\/\s,]+)(?:[\s),.]|$)/);
-  const commaMatch = text.match(/(?:^|[\s(])([^,\s\/]+),([^,\s\/]+),([^,\s\/]+),([^,\s\/]+)(?:[\s),.]|$)/);
-
-  const match = slashMatch || commaMatch;
-  if (!match) return null;
-
-  return {
-    username: safeString(match[1]),
-    password: safeString(match[2]),
-    companyCode: safeString(match[3]),
-    branchCode: safeString(match[4])
-  };
-}
-
-function detectVersionLabel(text, login) {
-  const cleaned = safeString(text);
-
-  const knownPatterns = [
-    /\baug\s*sql\s*2016\b/i,
-    /\bnew version\b/i,
-    /\brevamp\b/i,
-    /\bqa\b/i,
-    /\buat\b/i,
-    /\bprod\b/i,
-    /\baug\b/i,
-    /\bjul\b/i,
-    /\bsql\s*2016\b/i,
-    /\bpatch[\w-]*\b/i
-  ];
-
-  for (const pattern of knownPatterns) {
-    const match = cleaned.match(pattern);
-    if (match?.[0]) return match[0].trim();
-  }
-
-  if (login) {
-    return '';
-  }
-
-  return '';
-}
-
-function detectEmployeeCode(text, login) {
-  const cleaned = safeString(text);
-
-  const codePatterns = [
-    /\bemp\d+\b/i,
-    /\bemployee\s*code\s*[:=-]?\s*([A-Za-z0-9_-]+)\b/i
-  ];
-
-  for (const pattern of codePatterns) {
-    const match = cleaned.match(pattern);
-    if (!match) continue;
-
-    if (match[1]) {
-      return safeString(match[1]);
-    }
-
-    return safeString(match[0]);
-  }
-
-  if (login) {
-    const rawTokens = extractRawTokens(cleaned);
-    if (rawTokens.length === 4) return '';
-  }
-
-  return '';
-}
-
-function extractRawTokens(text) {
-  if (!text) return [];
-
-  if (text.includes('/')) {
-    const slashParts = text.split('/').map((part) => part.trim()).filter(Boolean);
-    if (slashParts.length === 4) return slashParts;
-  }
-
-  if (text.includes(',')) {
-    const commaParts = text.split(',').map((part) => part.trim()).filter(Boolean);
-    if (commaParts.length === 4) return commaParts;
-  }
-
-  return [];
-}
-
-function applyParsedMenaitechContext(report, parsedContext, latestUserRequest) {
-  const updated = normalizeReport(report);
-  const request = safeString(latestUserRequest).toLowerCase();
-
-  const shouldUpdateVersion =
-    !!parsedContext &&
-    (
-      !!parsedContext.login ||
-      !!parsedContext.versionLabel
-    ) &&
-    (
-      !updated.Version ||
-      /\bversion\b|\blogin\b|\busername\b|\bpassword\b|\bcompany code\b|\bbranch code\b/.test(request) ||
-      !request
-    );
-
-  if (shouldUpdateVersion) {
-    updated.Version = buildVersionField(parsedContext, updated.Version);
-  }
-
-  if (!updated.Steps_to_Reproduce.length) {
-    updated.Steps_to_Reproduce = buildFallbackStepsFromContext(parsedContext, latestUserRequest);
-  }
-
-  return normalizeReport(updated);
-}
-
-function buildVersionField(parsedContext, existingVersion) {
-  if (!parsedContext) return existingVersion || '';
-
-  const parts = [];
-
-  if (parsedContext.versionLabel) {
-    parts.push(`Environment/Version: ${parsedContext.versionLabel}`);
-  }
-
-  if (parsedContext.login) {
-    parts.push(`Username: ${parsedContext.login.username}`);
-    parts.push(`Password: ${parsedContext.login.password}`);
-    parts.push(`Company Code: ${parsedContext.login.companyCode}`);
-    parts.push(`Branch Code: ${parsedContext.login.branchCode}`);
-  }
-
-  if (!parts.length) {
-    return existingVersion || '';
-  }
-
-  return parts.join('\n');
-}
-
-function applyConservativeClassification(report, latestUserRequest, currentReport) {
-  const updated = normalizeReport(report);
-  const request = safeString(latestUserRequest);
-
-  if (explicitlyRequestsSeverityOrPriorityChange(request)) {
-    return updated;
-  }
-
-  if (currentReport) {
-    updated.Severity = normalizeSeverity(currentReport.Severity);
-    updated.Priority = normalizePriority(currentReport.Priority);
-    return updated;
-  }
-
-  const combinedText = [updated.Title, updated.Description, updated.Actual_Result, updated.Impact, request]
-    .map((item) => safeString(item).toLowerCase())
-    .join(' ');
-
-  const isCritical = /\b(data loss|lost data|deleted data|security|unauthorized|breach|system down|cannot process payroll|wrong salary|incorrect net salary|financial discrepancy|extra amount|missing amount|all employees|all users|production down|crash for all|blocked payroll)\b/.test(combinedText);
-  const isHigh = /\b(cannot save|save fails|unable to save|cannot submit|unable to submit|calculation incorrect|wrong calculation|validation fails|blocking|cannot continue|fails to complete|not generated|does not generate|incorrect result)\b/.test(combinedText);
-  const isLow = /\b(ui|alignment|spacing|font|color|label|typo|cosmetic|display only|layout)\b/.test(combinedText);
-
-  if (isCritical) {
-    updated.Severity = 'Critical';
-    updated.Priority = /\b(prod|production|payroll deadline|urgent|immediately|immediate)\b/.test(combinedText) ? 'Urgent' : 'High';
-    return updated;
-  }
-
-  if (isHigh) {
-    updated.Severity = 'High';
-    updated.Priority = /\b(payroll|salary|month end|deadline|blocks|blocking)\b/.test(combinedText) ? 'High' : 'Medium';
-    return updated;
-  }
-
-  if (isLow) {
-    updated.Severity = 'Low';
-    updated.Priority = 'Low';
-    return updated;
-  }
-
-  updated.Severity = 'Medium';
-  updated.Priority = 'Medium';
-  return updated;
-}
-
-function explicitlyRequestsSeverityOrPriorityChange(request) {
-  const text = safeString(request).toLowerCase();
-  return /\bseverity\b|\bpriority\b|\bالخطورة\b|\bالأولوية\b/.test(text);
-}
-
-function extractJSONString(rawContent) {
-  if (!rawContent || typeof rawContent !== 'string') return '{}';
-
-  const fencedMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fencedMatch?.[1]) {
-    return fencedMatch[1].trim();
-  }
-
-  const firstBrace = rawContent.indexOf('{');
-  const lastBrace = rawContent.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    return rawContent.slice(firstBrace, lastBrace + 1).trim();
-  }
-
-  return rawContent.trim();
-}
-
-function normalizeReport(data) {
-  return {
-    Title: safeString(data?.Title),
-    Description: safeString(data?.Description),
-    Steps_to_Reproduce: normalizeSteps(data?.Steps_to_Reproduce),
-    Expected_Result: safeString(data?.Expected_Result),
-    Actual_Result: safeString(data?.Actual_Result),
-    Environment: safeString(data?.Environment),
-    Version: safeString(data?.Version),
-    Severity: normalizeSeverity(data?.Severity),
-    Priority: normalizePriority(data?.Priority),
-    Impact: safeString(data?.Impact),
-    Attachments: normalizeAttachments(data?.Attachments)
-  };
-}
-
-function fallbackReportFromText(text) {
-  return {
-    Title: extractField(text, ['Title']) || 'Bug Report',
-    Description: extractField(text, ['Description']) || '',
-    Steps_to_Reproduce: extractSteps(text),
-    Expected_Result: extractField(text, ['Expected Result', 'Expected_Result']) || '',
-    Actual_Result: extractField(text, ['Actual Result', 'Actual_Result']) || '',
-    Environment: extractField(text, ['Environment']) || '',
-    Version: extractField(text, ['Version']) || '',
-    Severity: normalizeSeverity(
-      extractField(text, ['Severity', 'Severity / Priority']) || 'Medium'
-    ),
-    Priority: normalizePriority(extractField(text, ['Priority']) || 'Medium'),
-    Impact: extractField(text, ['Impact']) || '',
-    Attachments: normalizeAttachments(extractField(text, ['Attachments']) || '')
-  };
-}
-
-function extractField(text, fieldNames) {
-  if (!text) return null;
-
-  for (const fieldName of fieldNames) {
-    const patterns = [
-      new RegExp(`\\*\\*${escapeRegExp(fieldName)}:?\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*|$)`, 'i'),
-      new RegExp(`^${escapeRegExp(fieldName)}:?\\s*([\\s\\S]*?)(?=\\n[A-Z][A-Za-z_ /]+:?\\n?|$)`, 'im'),
-      new RegExp(`"${escapeRegExp(fieldName)}"\\s*:\\s*"([^"]*)"`, 'i')
-    ];
-
-    for (const regex of patterns) {
-      const match = text.match(regex);
-      if (match?.[1]) {
-        return match[1].trim();
-      }
-    }
-  }
-
-  return null;
-}
-
-function extractSteps(text) {
-  if (!text) return [];
-
-  const stepsBlock = extractField(text, ['Steps to Reproduce', 'Steps_to_Reproduce']) || '';
-  if (!stepsBlock) return [];
-
-  if (stepsBlock.startsWith('[')) {
-    try {
-      const parsed = JSON.parse(stepsBlock);
-      if (Array.isArray(parsed)) {
-        return parsed.map((step) => safeString(step)).filter(Boolean);
-      }
-    } catch (_) {}
-  }
-
-  const numbered = stepsBlock
-    .split(/\n?\s*\d+\.\s+/)
-    .map((step) => step.trim())
-    .filter(Boolean);
-
-  if (numbered.length) return numbered;
-
-  const dashed = stepsBlock
-    .split(/\n-\s+/)
-    .map((step) => step.trim())
-    .filter(Boolean);
-
-  if (dashed.length) return dashed;
-
-  return [stepsBlock.trim()].filter(Boolean);
-}
-
-function normalizeSteps(steps) {
-  if (Array.isArray(steps)) {
-    return steps
-      .map((step) => {
-        if (typeof step === 'object' && step !== null) {
-          return safeString(
-            step.step ||
-              step.description ||
-              step.text ||
-              step.content ||
-              JSON.stringify(step)
-          );
-        }
-        return safeString(step);
-      })
-      .filter(Boolean)
-      .slice(0, 10);
-  }
-
-  if (typeof steps === 'string' && steps.trim()) {
-    return steps
-      .split(/\n?\s*\d+\.\s+|\n-\s+/)
-      .map((step) => step.trim())
-      .filter(Boolean)
-      .slice(0, 10);
-  }
-
-  return [];
+function normalizeSteps(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((step) => safeString(step)).filter(Boolean).slice(0, 12);
 }
 
 function normalizeAttachments(value) {
   if (Array.isArray(value)) {
     return value.map((item) => safeString(item)).filter(Boolean);
   }
-
   return safeString(value);
 }
 
@@ -799,43 +235,509 @@ function normalizeSeverity(value) {
   const normalized = safeString(value).toLowerCase();
   if (normalized === 'critical') return 'Critical';
   if (normalized === 'high') return 'High';
-  if (normalized === 'medium') return 'Medium';
   if (normalized === 'low') return 'Low';
-  return 'Medium';
+  return normalized === 'medium' ? 'Medium' : '';
 }
 
 function normalizePriority(value) {
   const normalized = safeString(value).toLowerCase();
   if (normalized === 'urgent') return 'Urgent';
   if (normalized === 'high') return 'High';
-  if (normalized === 'medium') return 'Medium';
   if (normalized === 'low') return 'Low';
+  return normalized === 'medium' ? 'Medium' : '';
+}
+
+function normalizeVersionValue(value) {
+  return safeString(value)
+    .replace(/^Environment\s*:\s*/i, '')
+    .replace(/^Environment\s*\/\s*Version\s*:\s*/i, '')
+    .replace(/^Version\s*:\s*/i, '')
+    .trim();
+}
+
+function fallbackReportFromText(rawContent, currentReport) {
+  const base = currentReport || emptyReport();
+  return normalizeReport({
+    ...base,
+    Title: base.Title,
+    Description: safeString(rawContent).slice(0, 500),
+    Steps_to_Reproduce: base.Steps_to_Reproduce,
+    Expected_Result: base.Expected_Result,
+    Actual_Result: base.Actual_Result,
+    Version: base.Version,
+    Severity: base.Severity,
+    Priority: base.Priority,
+    Impact: base.Impact,
+    Attachments: base.Attachments
+  });
+}
+
+function emptyReport() {
+  return {
+    Title: '',
+    Description: '',
+    Steps_to_Reproduce: [],
+    Expected_Result: '',
+    Actual_Result: '',
+    Version: '',
+    Severity: '',
+    Priority: '',
+    Impact: '',
+    Attachments: ''
+  };
+}
+
+function parseMenaitechContext(text) {
+  const cleaned = safeString(text);
+  const extracted = extractVersionAndCredentials(cleaned);
+  const testData = extractExplicitTestData(cleaned);
+  const navigation = getSafeNavigationHint(cleaned);
+
+  return {
+    version: extracted.version,
+    version_format: extracted.version ? extracted.versionSource : '',
+    credentials: extracted.credentials,
+    version_display: extracted.versionDisplay,
+    raw_candidates: extracted.rawCandidates,
+    safe_navigation_hint: navigation,
+    explicit_test_data: testData,
+    explicit_system_names: extractExplicitSystems(cleaned)
+  };
+}
+
+function extractExplicitSystems(text) {
+  const systems = ['MenaPAY', 'MenaHR', 'MenaTA', 'MenaME web', 'MenaME Mobile', 'MenaBI'];
+  return systems.filter((name) => new RegExp(escapeRegex(name), 'i').test(text));
+}
+
+function extractVersionAndCredentials(text) {
+  const result = {
+    version: '',
+    versionSource: '',
+    versionDisplay: '',
+    credentials: null,
+    rawCandidates: []
+  };
+
+  const candidates = [];
+
+  const wrappedPattern = /\b([A-Za-z][A-Za-z0-9_-]{1,40})\s*\(\s*([^()\n]{3,120})\s*\)/g;
+  let match;
+  while ((match = wrappedPattern.exec(text)) !== null) {
+    const wrapper = safeString(match[1]);
+    const inner = safeString(match[2]);
+    const credentials = parseCredentialTuple(inner);
+    if (credentials) {
+      candidates.push({ type: 'wrapped', wrapper, credentials, raw: match[0] });
+    }
+  }
+
+  const keywordWrappedPattern = /\b(?:version|ver|build|release|env|environment)\s*[:=-]?\s*([A-Za-z0-9_-]{2,60})/gi;
+  while ((match = keywordWrappedPattern.exec(text)) !== null) {
+    candidates.push({ type: 'version_keyword', version: safeString(match[1]), raw: match[0] });
+  }
+
+  const contextVersionPattern = /\b(?:on|at)\s+([A-Za-z][A-Za-z0-9_-]{1,40})\b/gi;
+  while ((match = contextVersionPattern.exec(text)) !== null) {
+    const versionToken = safeString(match[1]);
+    if (!looksLikeKnownScreenWord(versionToken) && !looksLikeEmployeeCode(versionToken)) {
+      candidates.push({ type: 'context_version', version: versionToken, raw: match[0] });
+    }
+  }
+
+  const looseCredentialPattern = /(^|[\s:;,-])([A-Za-z0-9._-]{1,30}\s*[,/]\s*[^\s,/()]{1,30}\s*[,/]\s*[A-Za-z0-9._-]{1,40}\s*[,/]\s*[A-Za-z0-9._-]{1,40})(?=$|[\s.;,)])/g;
+  while ((match = looseCredentialPattern.exec(text)) !== null) {
+    const chunk = safeString(match[2]);
+    const credentials = parseCredentialTuple(chunk);
+    if (credentials && !isLikelyEmployeeExample(chunk)) {
+      candidates.push({ type: 'bare_credentials', credentials, raw: chunk });
+    }
+  }
+
+  result.rawCandidates = candidates.map((item) => item.raw);
+
+  const wrapped = candidates.find((item) => item.type === 'wrapped');
+  const bare = candidates.find((item) => item.type === 'bare_credentials');
+  const versionOnly = candidates.find((item) => item.version);
+
+  if (wrapped) {
+    result.version = wrapped.wrapper;
+    result.versionSource = 'wrapped_credentials';
+    result.credentials = wrapped.credentials;
+  } else if (bare) {
+    result.credentials = bare.credentials;
+  }
+
+  if (!result.version && versionOnly) {
+    result.version = versionOnly.version;
+    result.versionSource = versionOnly.type;
+  }
+
+  result.versionDisplay = buildVersionDisplay(result.version, result.credentials);
+  return result;
+}
+
+function parseCredentialTuple(value) {
+  const text = safeString(value);
+  if (!text) return null;
+
+  const separator = text.includes('/') ? '/' : text.includes(',') ? ',' : null;
+  if (!separator) return null;
+
+  const parts = text.split(separator).map((item) => safeString(item)).filter(Boolean);
+  if (parts.length !== 4) return null;
+  if (parts.some((part) => part.length > 40)) return null;
+
+  const [username, password, companyCode, branchCode] = parts;
+
+  if (!username || !password || !companyCode || !branchCode) return null;
+  if (looksLikeEmployeeCode(username) && /pass(word)?/i.test(text)) return null;
+
+  return { username, password, companyCode, branchCode, raw: text };
+}
+
+function buildVersionDisplay(version, credentials) {
+  const lines = [];
+  if (version) lines.push(`Version: ${version}`);
+  if (credentials) {
+    lines.push(`Username: ${credentials.username}`);
+    lines.push(`Password: ${credentials.password}`);
+    lines.push(`Company Code: ${credentials.companyCode}`);
+    lines.push(`Branch Code: ${credentials.branchCode}`);
+  }
+  return lines.join('\n');
+}
+
+function extractExplicitTestData(text) {
+  const employeeCodes = [];
+  const codePatterns = [
+    /\bemployee\s*code\s*[:=-]?\s*([A-Za-z0-9_-]{1,30})/gi,
+    /\bemp(?:loyee)?\s*[:#-]?\s*([A-Za-z0-9_-]{1,30})/gi,
+    /\bemployee\s+([A-Za-z][A-Za-z0-9_-]{0,20})\b/gi
+  ];
+
+  for (const pattern of codePatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const code = safeString(match[1]);
+      if (code && !employeeCodes.includes(code) && !looksLikeKnownScreenWord(code)) {
+        employeeCodes.push(code);
+      }
+    }
+  }
+
+  const examplePasswords = [];
+  const passwordPattern = /\bpassword\s*[:=-]?\s*([^\s,.;)]+)/gi;
+  let passwordMatch;
+  while ((passwordMatch = passwordPattern.exec(text)) !== null) {
+    const value = safeString(passwordMatch[1]);
+    if (value && !examplePasswords.includes(value)) {
+      examplePasswords.push(value);
+    }
+  }
+
+  return { employee_codes: employeeCodes, example_passwords: examplePasswords };
+}
+
+function getSafeNavigationHint(text) {
+  const normalized = safeString(text).toLowerCase();
+  const hints = [];
+
+  const financialTransactions = [
+    'overtime',
+    'other income',
+    'other deduction',
+    'loan',
+    'salary raise',
+    'allowance raise',
+    'non-payroll benefit transactions',
+    'non-payroll benefit raise',
+    'part time transactions',
+    'permanent deduction transactions'
+  ];
+
+  const leaveTransactions = [
+    'leave',
+    'vacation',
+    'vacations compensation',
+    'vacations adjustment',
+    'compound vacations'
+  ];
+
+  if (financialTransactions.some((item) => normalized.includes(item))) {
+    hints.push('Safe path allowed only because the mentioned transaction matches a known rule: Workforce Management -> Financial Transactions -> Employees Transactions.');
+  }
+
+  if (leaveTransactions.some((item) => normalized.includes(item))) {
+    hints.push('Safe path allowed only because the mentioned transaction matches a known rule: Workforce Management -> Leave Management -> Employees Transactions.');
+  }
+
+  if (normalized.includes('vacations balances')) {
+    hints.push('Safe hint: Vacations Balances is reached from Workforce Management tab.');
+  }
+
+  if (/(add|create|define|new)\s+employee|personnel information/.test(normalized)) {
+    hints.push('Safe hint: Employees -> Personnel Information can be used only for adding or editing basic employee information.');
+  }
+
+  if (/salary|allowance|social security|insurance|financial information/.test(normalized)) {
+    hints.push('Safe hint: Employees -> Financial Information can be used only for employee financial data such as salary, allowance, social security, or insurance.');
+  }
+
+  if (normalized.includes('salary calculation')) {
+    hints.push('Safe hint: Salary Calculation is under Workforce Management tab because the user explicitly mentioned it.');
+  }
+
+  if (normalized.includes('termination') || normalized.includes('employee termination')) {
+    hints.push('Safe hint: Employee Termination is under Workforce Management tab because the user explicitly mentioned termination.');
+  }
+
+  if (
+    normalized.includes('system parameters') ||
+    normalized.includes('working hours per day') ||
+    normalized.includes('number of yearly salaries') ||
+    normalized.includes('working days per month') ||
+    normalized.includes('is specified according to calendar days') ||
+    normalized.includes('cut off date') ||
+    normalized.includes('configuration system')
+  ) {
+    hints.push('Safe hint: Setting -> System Parameters may be referenced only because the user explicitly mentioned System Parameters or one of its known options.');
+  }
+
+  return hints;
+}
+
+function applyParsedMenaitechContext(report, parsedContext, latestUserRequest, currentReport) {
+  const next = normalizeReport(report);
+
+  if (parsedContext.versionDisplay) {
+    next.Version = parsedContext.versionDisplay;
+  } else if (!next.Version && currentReport?.Version) {
+    next.Version = currentReport.Version;
+  }
+
+  next.Version = sanitizeForbiddenGuesses(next.Version, latestUserRequest, parsedContext);
+  next.Steps_to_Reproduce = sanitizeSteps(next.Steps_to_Reproduce, latestUserRequest, parsedContext);
+  next.Title = sanitizeForbiddenGuesses(next.Title, latestUserRequest, parsedContext);
+  next.Description = sanitizeForbiddenGuesses(next.Description, latestUserRequest, parsedContext);
+  next.Expected_Result = sanitizeForbiddenGuesses(next.Expected_Result, latestUserRequest, parsedContext);
+  next.Actual_Result = sanitizeForbiddenGuesses(next.Actual_Result, latestUserRequest, parsedContext);
+  next.Impact = sanitizeForbiddenGuesses(next.Impact, latestUserRequest, parsedContext);
+
+  return next;
+}
+
+function sanitizeSteps(steps, latestUserRequest, parsedContext) {
+  const safeSteps = normalizeSteps(steps);
+  return safeSteps.map((step) => sanitizeForbiddenGuesses(step, latestUserRequest, parsedContext));
+}
+
+function sanitizeForbiddenGuesses(value, latestUserRequest, parsedContext) {
+  let text = safeString(value);
+  if (!text) return '';
+
+  text = text.replace(/\bEnvironment\s*:/gi, '');
+
+  const userText = safeString(latestUserRequest);
+  const explicitSystems = parsedContext.explicit_system_names || [];
+  const allowedFragments = [
+    ...explicitSystems,
+    ...(parsedContext.safe_navigation_hint || []).flatMap((hint) => extractAllowedPathTokens(hint)),
+    'System Parameters',
+    'Personnel Information',
+    'Financial Information',
+    'Salary Calculation',
+    'Employee Termination',
+    'Vacations Balances'
+  ];
+
+  const protectedTerms = [
+    'MenaPAY', 'MenaHR', 'MenaTA', 'MenaME web', 'MenaME Mobile', 'MenaBI',
+    'Salary Calculation', 'Employee Termination', 'Personnel Information',
+    'Financial Information', 'System Parameters', 'Vacations Balances'
+  ];
+
+  for (const term of protectedTerms) {
+    const mentionedInUser = new RegExp(escapeRegex(term), 'i').test(userText);
+    const allowedByHint = allowedFragments.some((item) => item.toLowerCase() === term.toLowerCase());
+    if (!mentionedInUser && !allowedByHint) {
+      text = text.replace(new RegExp(`\\b${escapeRegex(term)}\\b`, 'gi'), '').replace(/\s{2,}/g, ' ').trim();
+    }
+  }
+
+  return text;
+}
+
+function extractAllowedPathTokens(hint) {
+  const tokens = [];
+  const known = [
+    'Workforce Management', 'Financial Transactions', 'Employees Transactions', 'Leave Management',
+    'Vacations Balances', 'Setting', 'System Parameters', 'Employees', 'Personnel Information',
+    'Financial Information', 'Salary Calculation', 'Employee Termination'
+  ];
+  for (const item of known) {
+    if (new RegExp(escapeRegex(item), 'i').test(hint)) {
+      tokens.push(item);
+    }
+  }
+  return tokens;
+}
+
+function preserveUnrequestedFields(baseReport, updatedReport, latestUserRequest) {
+  const base = normalizeReport(baseReport);
+  const next = normalizeReport(updatedReport);
+  const request = safeString(latestUserRequest).toLowerCase();
+
+  const fieldPatterns = {
+    Title: /(title|subject|headline)/,
+    Description: /(description|details|rewrite description|shorten description|expand description)/,
+    Steps_to_Reproduce: /(steps|step|reproduce|scenario|test data|employee code)/,
+    Expected_Result: /(expected)/,
+    Actual_Result: /(actual)/,
+    Version: /(version|release|build|credential|credentials|login|username|password|company code|branch code)/,
+    Severity: /(severity)/,
+    Priority: /(priority)/,
+    Impact: /(impact)/,
+    Attachments: /(attachment|attachments|screenshot|video|file)/
+  };
+
+  for (const [field, pattern] of Object.entries(fieldPatterns)) {
+    const wasMentioned = pattern.test(request);
+    const containsExistingText = safeString(base[field]) && request.includes(safeString(base[field]).toLowerCase());
+    const shouldUpdate = wasMentioned || containsExistingText || (!safeString(base[field]) && safeString(next[field]));
+    if (!shouldUpdate) {
+      next[field] = base[field];
+    }
+  }
+
+  return next;
+}
+
+function applyExplicitFieldOverrides(report, latestUserRequest) {
+  const next = normalizeReport(report);
+  const request = safeString(latestUserRequest);
+
+  if (/remove\s+attachments?|no\s+attachments?/i.test(request)) {
+    next.Attachments = '';
+  }
+
+  if (/remove\s+version|clear\s+version/i.test(request)) {
+    next.Version = '';
+  }
+
+  return next;
+}
+
+function applyConservativeClassification(report, latestUserRequest, currentReport) {
+  const next = normalizeReport(report);
+  const request = safeString(latestUserRequest).toLowerCase();
+
+  const explicitlyChangesSeverity = /severity/i.test(request);
+  const explicitlyChangesPriority = /priority/i.test(request);
+
+  if (!next.Severity) {
+    next.Severity = currentReport?.Severity || inferSeverity(request);
+  }
+  if (!next.Priority) {
+    next.Priority = currentReport?.Priority || inferPriority(request);
+  }
+
+  if (!explicitlyChangesSeverity && currentReport?.Severity && !hasStrongImpactSignal(request)) {
+    next.Severity = currentReport.Severity;
+  }
+
+  if (!explicitlyChangesPriority && currentReport?.Priority && !hasStrongImpactSignal(request)) {
+    next.Priority = currentReport.Priority;
+  }
+
+  return next;
+}
+
+function inferSeverity(text) {
+  if (/(security|data loss|wrong payroll|wrong salary|financial corruption|system[- ]wide|cannot continue|blocker)/i.test(text)) {
+    return 'High';
+  }
+  if (/(ui|cosmetic|alignment|spacing|typo)/i.test(text)) {
+    return 'Low';
+  }
   return 'Medium';
 }
 
-function safeString(value) {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value.trim();
-  return String(value).trim();
-}
-
-function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-async function safeReadText(response) {
-  try {
-    return await response.text();
-  } catch {
-    return '';
+function inferPriority(text) {
+  if (/(deadline|urgent|payroll run|production outage|cannot continue)/i.test(text)) {
+    return 'High';
   }
+  if (/(ui|cosmetic|alignment|spacing|typo)/i.test(text)) {
+    return 'Low';
+  }
+  return 'Medium';
+}
+
+function hasStrongImpactSignal(text) {
+  return /(security|data loss|wrong payroll|wrong salary|financial corruption|system[- ]wide|production outage|blocker|cannot continue|deadline)/i.test(text);
+}
+
+function finalizeReport(report, currentReport, isRevision) {
+  const next = normalizeReport(report);
+
+  if (!next.Version) {
+    next.Version = currentReport?.Version || '';
+  }
+
+  if (!next.Title && isRevision && currentReport?.Title) next.Title = currentReport.Title;
+  if (!next.Description && isRevision && currentReport?.Description) next.Description = currentReport.Description;
+  if (!next.Steps_to_Reproduce.length && isRevision && currentReport?.Steps_to_Reproduce?.length) {
+    next.Steps_to_Reproduce = currentReport.Steps_to_Reproduce;
+  }
+  if (!next.Expected_Result && isRevision && currentReport?.Expected_Result) next.Expected_Result = currentReport.Expected_Result;
+  if (!next.Actual_Result && isRevision && currentReport?.Actual_Result) next.Actual_Result = currentReport.Actual_Result;
+  if (!next.Impact && isRevision && currentReport?.Impact) next.Impact = currentReport.Impact;
+  if (!next.Attachments && isRevision && currentReport?.Attachments) next.Attachments = currentReport.Attachments;
+
+  next.Version = normalizeVersionValue(next.Version);
+  return next;
+}
+
+function extractJSONString(rawContent) {
+  const text = safeString(rawContent);
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first === -1 || last === -1 || last <= first) {
+    throw new Error('No JSON object found in response');
+  }
+  return text.slice(first, last + 1);
+}
+
+function safeString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function safeReadText(response) {
+  return response.text().catch(() => '');
 }
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store'
     }
   });
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function looksLikeEmployeeCode(value) {
+  return /^(?:p|emp|employee)[a-z0-9_-]{0,20}$/i.test(value);
+}
+
+function looksLikeKnownScreenWord(value) {
+  return /^(open|click|save|employee|employees|screen|tab|setting|settings|system|parameters)$/i.test(value);
+}
+
+function isLikelyEmployeeExample(value) {
+  return /employee\s*code|\bemp\b|\bemployee\b/i.test(value);
 }

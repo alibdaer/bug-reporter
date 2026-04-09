@@ -1,48 +1,45 @@
+const MAX_INPUT_LENGTH = 4000;
+const THEME_STORAGE_KEY = 'bug-reporter-theme';
+const RESET_REQUEST_PATTERNS = [/^new\s+conversation\s*$/i, /^start\s+over\s*$/i, /^reset\s*$/i, /^محادثة\s+جديدة\s*$/];
+
 let conversation = [];
 let currentReport = null;
 let lastReportMessage = null;
-const THEME_STORAGE_KEY = 'bug-reporter-theme';
 
-const START_NEW_PATTERNS = [
-  /^new\s+conversation\s*$/i,
-  /^new\s+report\s*$/i,
-  /^start\s+new\s+report\s*$/i,
-  /^start\s+new\s+conversation\s*$/i,
-  /^ابدأ\s+تقرير\s+جديد\s*$/,
-  /^ابدأ\s+محادثة\s+جديدة\s*$/,
-  /^تقرير\s+جديد\s*$/,
-  /^محادثة\s+جديدة\s*$/
-];
+const elements = {};
 
 document.addEventListener('DOMContentLoaded', () => {
-  const input = document.getElementById('user-input');
-  const sendBtn = document.getElementById('send-btn');
-  const newConversationTop = document.getElementById('new-conversation-top');
-  const themeToggle = document.getElementById('theme-toggle');
+  elements.input = document.getElementById('user-input');
+  elements.sendBtn = document.getElementById('send-btn');
+  elements.newConversationTop = document.getElementById('new-conversation-top');
+  elements.themeToggle = document.getElementById('theme-toggle');
+  elements.chat = document.getElementById('chat-container');
+  elements.charCount = document.getElementById('char-count');
+  elements.loading = document.getElementById('loading-overlay');
 
   applyStoredTheme();
 
-  input.addEventListener('input', () => {
-    autoResize(input);
+  elements.input.addEventListener('input', () => {
+    autoResize(elements.input);
     checkInput();
   });
 
-  input.addEventListener('keydown', (event) => {
+  elements.input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      if (!sendBtn.disabled) {
+      if (!elements.sendBtn.disabled) {
         sendMessage();
       }
     }
   });
 
-  sendBtn.addEventListener('click', sendMessage);
-  newConversationTop.addEventListener('click', newConversation);
-  themeToggle.addEventListener('click', toggleTheme);
+  elements.sendBtn.addEventListener('click', sendMessage);
+  elements.newConversationTop.addEventListener('click', newConversation);
+  elements.themeToggle.addEventListener('click', toggleTheme);
 
-  autoResize(input);
+  autoResize(elements.input);
   checkInput();
-  input.focus();
+  elements.input.focus();
 });
 
 function applyStoredTheme() {
@@ -61,56 +58,80 @@ function toggleTheme() {
 }
 
 function updateThemeToggleLabel(isDark) {
-  const themeToggle = document.getElementById('theme-toggle');
-  if (!themeToggle) return;
-  const icon = themeToggle.querySelector('.theme-icon');
-  const label = themeToggle.querySelector('.theme-label');
-  if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+  if (!elements.themeToggle) return;
+  const icon = elements.themeToggle.querySelector('.theme-icon');
+  const label = elements.themeToggle.querySelector('.theme-label');
+  if (icon) icon.textContent = isDark ? '☀️' : '';
   if (label) label.textContent = isDark ? 'Light mode' : 'Dark mode';
 }
 
 function autoResize(textarea) {
   textarea.style.height = 'auto';
-  textarea.style.height = `${Math.min(textarea.scrollHeight, 240)}px`;
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
 }
 
 function checkInput() {
-  const input = document.getElementById('user-input');
-  const sendBtn = document.getElementById('send-btn');
-  const charCount = document.getElementById('char-count');
-  const length = input.value.length;
-
-  charCount.textContent = `${length}/4000`;
-  sendBtn.disabled = input.value.trim().length === 0;
+  const length = elements.input.value.length;
+  elements.charCount.textContent = `${length}/${MAX_INPUT_LENGTH}`;
+  elements.sendBtn.disabled = !elements.input.value.trim();
 }
 
-function isStartNewConversation(text) {
-  return START_NEW_PATTERNS.some((pattern) => pattern.test(text.trim()));
+function scrollToBottom() {
+  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+
+function showLoading() {
+  elements.loading.classList.remove('hidden');
+  elements.loading.setAttribute('aria-hidden', 'false');
+}
+
+function hideLoading() {
+  elements.loading.classList.add('hidden');
+  elements.loading.setAttribute('aria-hidden', 'true');
+}
+
+function newConversation() {
+  conversation = [];
+  currentReport = null;
+  lastReportMessage = null;
+  elements.chat.innerHTML = `
+    <article class="message assistant-message intro-message">
+      <div class="message-avatar">AI</div>
+      <div class="message-body intro-card">
+        <p class="intro-title">Welcome!</p>
+        <p>
+          Describe the issue in a simple way, and I will generate a professional bug report.
+          After that, you can keep chatting with me to revise the same report.
+        </p>
+        <p class="intro-example">
+          Example: In Employee Exit Process, Termination Salary accepts letters in monetary fields and saves successfully.
+        </p>
+      </div>
+    </article>`;
+  elements.input.value = '';
+  autoResize(elements.input);
+  checkInput();
+  elements.input.focus();
 }
 
 async function sendMessage() {
-  const input = document.getElementById('user-input');
-  const text = input.value.trim();
+  const text = elements.input.value.trim();
   if (!text) return;
 
-  if (isStartNewConversation(text)) {
+  if (RESET_REQUEST_PATTERNS.some((pattern) => pattern.test(text))) {
     newConversation();
     return;
   }
 
   addTextMessage(text, true);
-
-  input.value = '';
-  autoResize(input);
+  elements.input.value = '';
+  autoResize(elements.input);
   checkInput();
-
-  showLoading(currentReport ? 'Updating report...' : 'Crafting report...');
+  showLoading();
 
   try {
-    const payload = {
-      messages: [...conversation, { role: 'user', content: text }],
-      currentReport
-    };
+    const payload = { messages: [...conversation, { role: 'user', content: text }] };
+    if (currentReport) payload.currentReport = currentReport;
 
     const response = await fetch('/api/generate', {
       method: 'POST',
@@ -123,7 +144,6 @@ async function sendMessage() {
     }
 
     const data = await response.json();
-
     conversation.push({ role: 'user', content: text });
 
     if (data.type === 'json' && data.content) {
@@ -145,7 +165,6 @@ async function sendMessage() {
 }
 
 function addTextMessage(text, isUser) {
-  const chat = document.getElementById('chat-container');
   const wrapper = document.createElement('article');
   wrapper.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
 
@@ -173,12 +192,11 @@ function addTextMessage(text, isUser) {
   }
 
   wrapper.appendChild(body);
-  chat.appendChild(wrapper);
+  elements.chat.appendChild(wrapper);
   scrollToBottom();
 }
 
 function addReportMessage(report, messageText) {
-  const chat = document.getElementById('chat-container');
   const wrapper = document.createElement('article');
   wrapper.className = 'message assistant-message';
 
@@ -212,15 +230,11 @@ function addReportMessage(report, messageText) {
       await copyReportToClipboard(report);
       const original = copyBtn.textContent;
       copyBtn.textContent = 'Copied!';
-      setTimeout(() => {
-        copyBtn.textContent = original;
-      }, 1800);
+      setTimeout(() => { copyBtn.textContent = original; }, 1800);
     } catch (error) {
       console.error(error);
       copyBtn.textContent = 'Copy failed';
-      setTimeout(() => {
-        copyBtn.textContent = 'Copy report';
-      }, 1800);
+      setTimeout(() => { copyBtn.textContent = 'Copy report'; }, 1800);
     }
   });
 
@@ -237,8 +251,7 @@ function addReportMessage(report, messageText) {
   card.append(toolbar, content);
   body.appendChild(card);
   wrapper.appendChild(body);
-
-  chat.appendChild(wrapper);
+  elements.chat.appendChild(wrapper);
   lastReportMessage = wrapper;
   scrollToBottom();
 }
@@ -258,12 +271,7 @@ function renderReport(report) {
   container.appendChild(createSection('Actual Result', createParagraph(report.Actual_Result)));
   container.appendChild(createSection('Severity/Priority', createMetaList(report)));
   container.appendChild(createSection('Impact', createParagraph(report.Impact)));
-  container.appendChild(createSection('Environment', createParagraph(report.Environment)));
-
-  if (hasContent(report.Version)) {
-    container.appendChild(createSection('Version', createParagraph(report.Version)));
-  }
-
+  container.appendChild(createSection('Version', createParagraph(report.Version)));
   container.appendChild(createSection('Attachments', createAttachments(report.Attachments)));
 
   return container;
@@ -272,11 +280,9 @@ function renderReport(report) {
 function createSection(label, contentNode) {
   const section = document.createElement('section');
   section.className = 'report-section';
-
   const heading = document.createElement('h3');
   heading.className = 'report-label';
   heading.textContent = `${label}:`;
-
   section.append(heading, contentNode);
   return section;
 }
@@ -285,9 +291,7 @@ function createParagraph(value) {
   const p = document.createElement('p');
   p.className = 'report-value';
   const text = safeValue(value, 'Not specified');
-  if (text === 'Not specified') {
-    p.classList.add('report-empty');
-  }
+  if (text === 'Not specified') p.classList.add('report-empty');
   p.textContent = text;
   return p;
 }
@@ -296,7 +300,6 @@ function createOrderedList(steps) {
   const list = document.createElement('ol');
   list.className = 'report-list';
   const normalized = Array.isArray(steps) ? steps : [];
-
   if (!normalized.length) {
     const li = document.createElement('li');
     li.className = 'report-empty';
@@ -304,20 +307,17 @@ function createOrderedList(steps) {
     list.appendChild(li);
     return list;
   }
-
   normalized.forEach((step) => {
     const li = document.createElement('li');
     li.textContent = typeof step === 'string' ? step : JSON.stringify(step);
     list.appendChild(li);
   });
-
   return list;
 }
 
 function createMetaList(report) {
   const list = document.createElement('ul');
   list.className = 'report-meta-list';
-
   const entries = [
     { label: 'Severity', value: safeValue(report.Severity, 'Medium') },
     { label: 'Priority', value: safeValue(report.Priority, 'Medium') }
@@ -325,7 +325,7 @@ function createMetaList(report) {
 
   entries.forEach((entry) => {
     const li = document.createElement('li');
-    li.innerHTML = `<strong>${escapeHtml(entry.label)}:</strong> ${escapeHtml(entry.value)}`;
+    li.innerHTML = `${escapeHtml(entry.label)}: ${escapeHtml(entry.value)}`;
     list.appendChild(li);
   });
 
@@ -353,7 +353,6 @@ function createAttachments(value) {
   return createParagraph(value);
 }
 
-
 function hasContent(value) {
   return typeof value === 'string' ? value.trim().length > 0 : Array.isArray(value) ? value.length > 0 : !!value;
 }
@@ -371,14 +370,12 @@ function formatReport(report) {
   lines.push(safeValue(report.Description, 'Not specified'));
   lines.push('');
   lines.push('Steps to Reproduce:');
-
   const steps = Array.isArray(report.Steps_to_Reproduce) ? report.Steps_to_Reproduce : [];
   if (steps.length) {
     steps.forEach((step, index) => lines.push(`${index + 1}. ${step}`));
   } else {
     lines.push('1. Not specified');
   }
-
   lines.push('');
   lines.push('Expected Result:');
   lines.push(safeValue(report.Expected_Result, 'Not specified'));
@@ -393,19 +390,15 @@ function formatReport(report) {
   lines.push('Impact:');
   lines.push(safeValue(report.Impact, 'Not specified'));
   lines.push('');
-  lines.push('Environment:');
-  lines.push(safeValue(report.Environment, 'Not specified'));
+  lines.push('Version:');
+  lines.push(safeValue(report.Version, 'Not specified'));
   lines.push('');
-
-  if (hasContent(report.Version)) {
-    lines.push('Version:');
-    lines.push(safeValue(report.Version, 'Not specified'));
-    lines.push('');
-  }
   lines.push('Attachments:');
-  lines.push(Array.isArray(report.Attachments)
-    ? (report.Attachments.length ? report.Attachments.map((item) => `• ${item}`).join('\n') : 'Not specified')
-    : safeValue(report.Attachments, 'Not specified'));
+  lines.push(
+    Array.isArray(report.Attachments)
+      ? (report.Attachments.length ? report.Attachments.map((item) => `• ${item}`).join('\n') : 'Not specified')
+      : safeValue(report.Attachments, 'Not specified')
+  );
   return lines.join('\n');
 }
 
@@ -416,33 +409,31 @@ function generateReportHtml(report) {
   const steps = Array.isArray(report.Steps_to_Reproduce) ? report.Steps_to_Reproduce : [];
 
   return `
-    <div style="font-family: Inter, Arial, sans-serif; color: #111827; line-height: 1.7; font-size: 15px;">
-      <h2 style="margin: 0 0 20px; font-size: 28px; font-weight: 700;">${escapeHtml(safeValue(report.Title, 'Bug Report'))}</h2>
-      ${richSectionHtml('Description', `<p style="margin: 0;">${escapeHtml(safeValue(report.Description, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Steps to Reproduce', orderedListHtml(steps))}
-      ${richSectionHtml('Expected Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Expected_Result, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Actual Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Actual_Result, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Severity/Priority', `
-        <ul style="margin: 0; padding-left: 24px;">
-          <li><strong>Severity:</strong> ${escapeHtml(safeValue(report.Severity, 'Medium'))}</li>
-          <li><strong>Priority:</strong> ${escapeHtml(safeValue(report.Priority, 'Medium'))}</li>
-        </ul>
-      `)}
-      ${richSectionHtml('Impact', `<p style="margin: 0;">${escapeHtml(safeValue(report.Impact, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Environment', `<p style="margin: 0;">${escapeHtml(safeValue(report.Environment, 'Not specified'))}</p>`) }
-      ${hasContent(report.Version) ? richSectionHtml('Version', `<p style="margin: 0;">${escapeHtml(safeValue(report.Version, 'Not specified'))}</p>`) : ''}
-      ${richSectionHtml('Attachments', attachments.length ? unorderedListHtml(attachments) : `<p style="margin: 0; color: #6b7280;">Not specified</p>`)}
-    </div>
+  <div style="font-family: Inter, Arial, sans-serif; color: #111827; line-height: 1.7; font-size: 15px;">
+    <h2 style="margin: 0 0 20px; font-size: 28px; font-weight: 700;">${escapeHtml(safeValue(report.Title, 'Bug Report'))}</h2>
+    ${richSectionHtml('Description', `<p style="margin: 0;">${escapeHtml(safeValue(report.Description, 'Not specified'))}</p>`)}
+    ${richSectionHtml('Steps to Reproduce', orderedListHtml(steps))}
+    ${richSectionHtml('Expected Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Expected_Result, 'Not specified'))}</p>`)}
+    ${richSectionHtml('Actual Result', `<p style="margin: 0;">${escapeHtml(safeValue(report.Actual_Result, 'Not specified'))}</p>`)}
+    ${richSectionHtml('Severity/Priority', `
+      <ul style="margin: 0; padding-left: 24px;">
+        <li><strong>Severity:</strong> ${escapeHtml(safeValue(report.Severity, 'Medium'))}</li>
+        <li><strong>Priority:</strong> ${escapeHtml(safeValue(report.Priority, 'Medium'))}</li>
+      </ul>
+    `)}
+    ${richSectionHtml('Impact', `<p style="margin: 0;">${escapeHtml(safeValue(report.Impact, 'Not specified'))}</p>`)}
+    ${richSectionHtml('Version', `<p style="margin: 0;">${escapeHtml(safeValue(report.Version, 'Not specified'))}</p>`)}
+    ${richSectionHtml('Attachments', attachments.length ? unorderedListHtml(attachments) : `<p style="margin: 0; color: #6b7280;">Not specified</p>`)}
+  </div>
   `.trim();
 }
 
 function richSectionHtml(label, contentHtml) {
   return `
-    <section style="margin: 0 0 18px;">
-      <h3 style="margin: 0 0 8px; font-size: 17px; font-weight: 700;">${escapeHtml(label)}:</h3>
-      ${contentHtml}
-    </section>
-  `;
+  <section style="margin: 0 0 18px;">
+    <h3 style="margin: 0 0 8px; font-size: 17px; font-weight: 700;">${escapeHtml(label)}:</h3>
+    ${contentHtml}
+  </section>`;
 }
 
 function orderedListHtml(items) {
@@ -470,45 +461,6 @@ async function copyReportToClipboard(report) {
   }
 
   await navigator.clipboard.writeText(plainText);
-}
-
-function newConversation() {
-  conversation = [];
-  currentReport = null;
-  lastReportMessage = null;
-
-  const chat = document.getElementById('chat-container');
-  chat.innerHTML = `
-    <article class="message assistant-message intro-message">
-      <div class="message-avatar">AI</div>
-      <div class="message-body intro-card">
-        <p class="intro-title">Welcome back!</p>
-        <p>Start a new bug report whenever you are ready.</p>
-      </div>
-    </article>
-  `;
-
-  const input = document.getElementById('user-input');
-  input.value = '';
-  autoResize(input);
-  checkInput();
-  input.focus();
-  scrollToBottom();
-}
-
-function showLoading(text) {
-  const overlay = document.getElementById('loading-overlay');
-  const label = document.getElementById('loading-text');
-  label.textContent = text;
-  overlay.classList.remove('hidden');
-}
-
-function hideLoading() {
-  document.getElementById('loading-overlay').classList.add('hidden');
-}
-
-function scrollToBottom() {
-  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 }
 
 function escapeHtml(value) {
