@@ -117,7 +117,7 @@ When a current report is provided, treat it as the base version.
 - Return the full JSON after the requested update.
 
 FINAL RULE:
-Accuracy is more important than completeness. If a field is not clearly supported, leave it empty.``;
+Accuracy is more important than completeness. If a field is not clearly supported, leave it empty.`;
 
     const preparedMessages = buildModelMessages(messages, currentReport);
 
