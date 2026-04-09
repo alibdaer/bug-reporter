@@ -18,7 +18,7 @@
       </div>
       <div class="topbar-actions">
         <button id="theme-toggle" class="secondary-btn icon-btn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
-          <span class="theme-icon" aria-hidden="true"></span>
+          <span class="theme-icon" aria-hidden="true">🌙</span>
           <span class="theme-label">Dark mode</span>
         </button>
         <button id="new-conversation-top" class="secondary-btn" type="button">New conversation</button>
@@ -68,7 +68,10 @@
   </div>
 
   <div id="loading-overlay" class="loading-overlay hidden" aria-hidden="true">
-    <div class="loading-pill">Crafting report...</div>
+    <div class="loading-card">
+      <div class="loader"></div>
+      <p id="loading-text">Crafting report...</p>
+    </div>
   </div>
 
   <script src="script.js"></script>
