@@ -259,7 +259,11 @@ function renderReport(report) {
   container.appendChild(createSection('Severity/Priority', createMetaList(report)));
   container.appendChild(createSection('Impact', createParagraph(report.Impact)));
   container.appendChild(createSection('Environment', createParagraph(report.Environment)));
-  container.appendChild(createSection('Version', createParagraph(report.Version)));
+
+  if (hasContent(report.Version)) {
+    container.appendChild(createSection('Version', createParagraph(report.Version)));
+  }
+
   container.appendChild(createSection('Attachments', createAttachments(report.Attachments)));
 
   return container;
@@ -349,6 +353,11 @@ function createAttachments(value) {
   return createParagraph(value);
 }
 
+
+function hasContent(value) {
+  return typeof value === 'string' ? value.trim().length > 0 : Array.isArray(value) ? value.length > 0 : !!value;
+}
+
 function safeValue(value, fallback) {
   const text = typeof value === 'string' ? value.trim() : String(value || '').trim();
   return text || fallback;
@@ -387,9 +396,12 @@ function formatReport(report) {
   lines.push('Environment:');
   lines.push(safeValue(report.Environment, 'Not specified'));
   lines.push('');
-  lines.push('Version:');
-  lines.push(safeValue(report.Version, 'Not specified'));
-  lines.push('');
+
+  if (hasContent(report.Version)) {
+    lines.push('Version:');
+    lines.push(safeValue(report.Version, 'Not specified'));
+    lines.push('');
+  }
   lines.push('Attachments:');
   lines.push(Array.isArray(report.Attachments)
     ? (report.Attachments.length ? report.Attachments.map((item) => `• ${item}`).join('\n') : 'Not specified')
@@ -418,7 +430,7 @@ function generateReportHtml(report) {
       `)}
       ${richSectionHtml('Impact', `<p style="margin: 0;">${escapeHtml(safeValue(report.Impact, 'Not specified'))}</p>`) }
       ${richSectionHtml('Environment', `<p style="margin: 0;">${escapeHtml(safeValue(report.Environment, 'Not specified'))}</p>`) }
-      ${richSectionHtml('Version', `<p style="margin: 0;">${escapeHtml(safeValue(report.Version, 'Not specified'))}</p>`) }
+      ${hasContent(report.Version) ? richSectionHtml('Version', `<p style="margin: 0;">${escapeHtml(safeValue(report.Version, 'Not specified'))}</p>`) : ''}
       ${richSectionHtml('Attachments', attachments.length ? unorderedListHtml(attachments) : `<p style="margin: 0; color: #6b7280;">Not specified</p>`)}
     </div>
   `.trim();
