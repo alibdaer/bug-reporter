@@ -5,7 +5,7 @@ export async function onRequest(context) {
     return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
-  if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) {
+  if (!env.QWEN_API_KEY || !env.QWEN_BASE_URL) {
     return jsonResponse({ error: 'Server error' }, 500);
   }
 
@@ -121,18 +121,20 @@ Accuracy is more important than completeness. If a field is not clearly supporte
 
     const preparedMessages = buildModelMessages(messages, currentReport);
 
-    const aiUrl = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.1-8b-instruct-fast`;
+    const aiUrl = `${env.QWEN_BASE_URL}/chat/completions`;
 
     const aiResponse = await fetch(aiUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.CF_API_TOKEN}`,
+        Authorization: `Bearer ${env.QWEN_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        model: 'qwen3.5-plus',
         messages: [{ role: 'system', content: systemPrompt }, ...preparedMessages],
         max_tokens: 3000,
-        temperature: 0.05
+        temperature: 0.05,
+        enable_thinking: false
       })
     });
 
@@ -145,7 +147,7 @@ Accuracy is more important than completeness. If a field is not clearly supporte
     }
 
     const aiData = await aiResponse.json();
-    const rawContent = aiData?.result?.response || '';
+    const rawContent = aiData?.choices?.[0]?.message?.content || '';
     const cleanJSON = extractJSONString(rawContent);
 
     let normalized;
