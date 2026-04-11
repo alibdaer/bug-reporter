@@ -468,3 +468,34 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  typeIntro();
+});
+
+function typeIntro() {
+  const titleEl = document.getElementById("intro-title");
+  const textEl = document.getElementById("intro-text");
+  const exampleEl = document.getElementById("intro-example");
+
+  const title = "Welcome!";
+
+  const text = `This AI assistant is built exclusively for Menaitech’s Quality Control team to help generate clear, accurate, and professional bug reports. Simply describe the issue, and a structured report will be created. You can continue refining the same report through follow-up messages.`;
+
+  const example = `Example: Issue in calculating Unpaid Vacation when the Cut-Off Date = 25 and the employee basic salary is 1500.000. The system calculates an incorrect deduction amount under specific scenarios...`;
+
+  typeWriter(titleEl, title, 0, () => {
+    typeWriter(textEl, text, 0, () => {
+      typeWriter(exampleEl, example, 0);
+    });
+  });
+}
+
+function typeWriter(element, text, i = 0, callback) {
+  if (i < text.length) {
+    element.textContent += text.charAt(i);
+    setTimeout(() => typeWriter(element, text, i + 1, callback), 20);
+  } else if (callback) {
+    setTimeout(callback, 300);
+  }
+}
