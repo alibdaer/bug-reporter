@@ -513,7 +513,7 @@ function typeWriter(element, text, speed = 10, callback) {
       i++;
       setTimeout(type, speed);
     } else if (callback) {
-      setTimeout(callback, 150);
+      setTimeout(callback, 100);
     }
   }
 
