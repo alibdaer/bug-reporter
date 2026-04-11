@@ -494,8 +494,8 @@ function typeIntro() {
 function typeWriter(element, text, i = 0, callback) {
   if (i < text.length) {
     element.textContent += text.charAt(i);
-    setTimeout(() => typeWriter(element, text, i + 1, callback), 10);
+    setTimeout(() => typeWriter(element, text, i + 1, callback), 8);
   } else if (callback) {
-    setTimeout(callback, 300);
+    setTimeout(callback, 100);
   }
 }
