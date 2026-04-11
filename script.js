@@ -1,4 +1,4 @@
-const MAX_INPUT_LENGTH = 4000;
+const MAX_INPUT_LENGTH = 2000;
 const THEME_STORAGE_KEY = 'bug-reporter-theme';
 const RESET_REQUEST_PATTERNS = [/^new\s+conversation\s*$/i, /^start\s+over\s*$/i, /^reset\s*$/i, /^محادثة\s+جديدة\s*$/];
 
