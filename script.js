@@ -103,9 +103,6 @@ function newConversation() {
           Describe the issue in a simple way, and I will generate a professional bug report.
           After that, you can keep chatting with me to revise the same report.
         </p>
-        <p class="intro-example">
-          Example: In Employee Exit Process, Termination Salary accepts letters in monetary fields and saves successfully.
-        </p>
       </div>
     </article>`;
   elements.input.value = '';
