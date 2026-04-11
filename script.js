@@ -480,7 +480,7 @@ function typeIntro() {
 
   const title = "Welcome!";
 
-  const text = `This AI assistant is built exclusively for Menaitech’s Quality Control team to help generate clear, accurate, and professional bug reports. Simply describe the issue, and a structured report will be created. You can continue refining the same report through follow-up messages.`;
+  const text = `This AI assistant is built exclusively for <b>Menaitech’s Quality Control team</b> to help generate clear, accurate, and professional bug reports. Simply describe the issue, and a structured report will be created. You can continue refining the same report through follow-up messages.`;
 
   const example = `Example: Issue in calculating Unpaid Vacation when the Cut-Off Date = 25 and the employee basic salary is 1500.000. The system calculates an incorrect deduction amount under specific scenarios...`;
 
