@@ -475,45 +475,44 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function typeIntro() {
   const titleEl = document.getElementById("intro-title");
-  const textEl = document.getElementById("intro-text");
+  const beforeEl = document.getElementById("intro-before");
+  const menaEl = document.getElementById("mena-text");
+  const afterEl = document.getElementById("intro-after");
   const exampleEl = document.getElementById("intro-example");
+  const TYPE_SPEED = 8;
+  const DELAY = 100;
 
   const title = "Welcome!";
+  const beforeText = "This AI assistant is built exclusively for ";
+  const boldText = "Menaitech’s Quality Control team";
+  const afterText = " to help generate clear, accurate, and professional bug reports. Simply describe the issue, and a structured report will be created. You can continue refining the same report through follow-up messages.";
+  const exampleText = "Example: Issue in calculating Unpaid Vacation when the Cut-Off Date = 25 and the employee basic salary is 1500.000. The system calculates an incorrect deduction amount under specific scenarios...";
 
-  const text = `This AI assistant is built exclusively for <b>Menaitech’s Quality Control team</b> to help generate clear, accurate, and professional bug reports. Simply describe the issue, and a structured report will be created. You can continue refining the same report through follow-up messages.`;
-
-  const example = `Example: Issue in calculating Unpaid Vacation when the Cut-Off Date = 25 and the employee basic salary is 1500.000. The system calculates an incorrect deduction amount under specific scenarios...`;
-
-  typeWriter(titleEl, title, 0, () => {
-    typeWriter(textEl, text, 0, () => {
-      typeWriter(exampleEl, example, 0);
-    });
+  typeWriter(titleEl, title, TYPE_SPEED, () => {
+    setTimeout(() => {
+      typeWriter(beforeEl, beforeText, TYPE_SPEED, () => {
+        typeWriter(menaEl, boldText, TYPE_SPEED, () => {
+          typeWriter(afterEl, afterText, TYPE_SPEED, () => {
+            setTimeout(() => {
+              typeWriter(exampleEl, exampleText, TYPE_SPEED);
+            }, DELAY);
+          });
+        });
+      });
+    }, DELAY);
   });
 }
 
-function typeWriter(element, text, speed = 8, callback) {
+function typeWriter(element, text, speed = TYPE_SPEED, callback) {
   let i = 0;
-  let isTag = false;
-  let buffer = "";
 
   function type() {
     if (i < text.length) {
-      const char = text[i];
-
-      if (char === "<") isTag = true;
-      if (isTag) buffer += char;
-      else element.innerHTML += char;
-
-      if (char === ">") {
-        isTag = false;
-        element.innerHTML += buffer;
-        buffer = "";
-      }
-
+      element.textContent += text.charAt(i);
       i++;
       setTimeout(type, speed);
     } else if (callback) {
-      setTimeout(callback, 100);
+      callback();
     }
   }
 
