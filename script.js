@@ -491,11 +491,31 @@ function typeIntro() {
   });
 }
 
-function typeWriter(element, text, i = 0, callback) {
-  if (i < text.length) {
-    element.textContent += text.charAt(i);
-    setTimeout(() => typeWriter(element, text, i + 1, callback), 8);
-  } else if (callback) {
-    setTimeout(callback, 100);
+function typeWriter(element, text, speed = 10, callback) {
+  let i = 0;
+  let isTag = false;
+  let buffer = "";
+
+  function type() {
+    if (i < text.length) {
+      const char = text[i];
+
+      if (char === "<") isTag = true;
+      if (isTag) buffer += char;
+      else element.innerHTML += char;
+
+      if (char === ">") {
+        isTag = false;
+        element.innerHTML += buffer;
+        buffer = "";
+      }
+
+      i++;
+      setTimeout(type, speed);
+    } else if (callback) {
+      setTimeout(callback, 150);
+    }
   }
+
+  type();
 }
