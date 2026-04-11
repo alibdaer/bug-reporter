@@ -491,7 +491,7 @@ function typeIntro() {
   });
 }
 
-function typeWriter(element, text, speed = 10, callback) {
+function typeWriter(element, text, speed = 8, callback) {
   let i = 0;
   let isTag = false;
   let buffer = "";
